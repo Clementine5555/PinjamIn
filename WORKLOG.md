@@ -43,6 +43,27 @@
 - Daftar serta status transaksi.
 - Profil dan pengaturan akun.
 
+### Flow penyewaan dan database
+
+- Membuat tabel Supabase `items` dan `rentals`.
+- Mengaktifkan Row Level Security pada kedua tabel.
+- Membatasi akses transaksi agar pengguna hanya dapat membaca dan membuat transaksi miliknya sendiri.
+- Mengaktifkan Anonymous Sign-Ins untuk flow MVP tanpa halaman login.
+- Menambahkan delapan data barang awal ke database.
+- Membuat seed database yang aman dijalankan ulang tanpa data duplikat.
+- Menghubungkan daftar barang pada Home dan Search ke Supabase.
+- Membuat halaman Detail Barang.
+- Membuat halaman Checkout dengan pilihan durasi sewa satu sampai tiga hari.
+- Menyimpan permintaan sewa dari Checkout ke Supabase.
+- Menghubungkan halaman Transaksi ke data penyewaan pengguna dari Supabase.
+- Membuat card barang dapat ditekan untuk membuka Detail Barang.
+
+### Pengujian perangkat Android
+
+- Mendeteksi perangkat Android `23049PCD8G` melalui USB debugging.
+- Berhasil membangun dan memasang APK debug pada perangkat Android.
+- Menyelesaikan pembatasan instalasi USB pada perangkat.
+
 ### Validasi
 
 - `dart format`: berhasil.

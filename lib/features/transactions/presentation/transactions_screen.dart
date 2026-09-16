@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
 
 class TransactionsScreen extends StatelessWidget {
   const TransactionsScreen({super.key});
+
+  Future<List<Map<String, dynamic>>> _getRentals() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return [];
+    final rows = await Supabase.instance.client
+        .from('rentals')
+        .select('id, status, start_date, end_date, total_price, items(title)')
+        .eq('renter_id', user.id)
+        .order('created_at', ascending: false);
+    return rows;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,42 +26,36 @@ class TransactionsScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          SegmentedButton<String>(
-            segments: [
-              ButtonSegment(value: 'Disewa', label: Text('Disewa')),
-              ButtonSegment(value: 'Dipinjamkan', label: Text('Dipinjamkan')),
-              ButtonSegment(value: 'Selesai', label: Text('Selesai')),
-            ],
-            selected: {'Disewa'},
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Sedang berlangsung',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
-          const _TransactionCard(
-            title: 'Sony Alpha A6400',
-            status: 'Sedang disewa',
-            detail: '18–20 Sep · Kembalikan sebelum 18.00',
-            color: AppColors.mint,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Menunggu tindakan',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
-          const _TransactionCard(
-            title: 'Jas Lab Kimia + Goggles',
-            status: 'Menunggu persetujuan',
-            detail: '22 Sep · 1 hari',
-            color: Color(0xFFFFE8B5),
-          ),
-        ],
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _getRentals(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(child: Text('Gagal memuat transaksi.'));
+          }
+          final rentals = snapshot.data!;
+          if (rentals.isEmpty) {
+            return const Center(child: Text('Belum ada transaksi.'));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: rentals.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final rental = rentals[index];
+              final item = rental['items'] as Map<String, dynamic>;
+              return _TransactionCard(
+                title: item['title'] as String,
+                status: rental['status'] as String,
+                detail:
+                    '${rental['start_date']} sampai ${rental['end_date']} · Rp ${rental['total_price']}',
+                color: AppColors.mint,
+              );
+            },
+          );
+        },
       ),
     );
   }

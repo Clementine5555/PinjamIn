@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/checkout/presentation/checkout_screen.dart';
+import '../../features/items/presentation/item_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/transactions/presentation/transactions_screen.dart';
@@ -34,6 +36,16 @@ final appRouter = GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/items/:id',
+      builder: (_, state) =>
+          ItemDetailScreen(itemId: int.parse(state.pathParameters['id']!)),
+    ),
+    GoRoute(
+      path: '/items/:id/checkout',
+      builder: (_, state) =>
+          CheckoutScreen(itemId: int.parse(state.pathParameters['id']!)),
     ),
   ],
 );

@@ -1,33 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/product_card.dart';
+import '../../items/data/item_repository.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  static const products = [
-    (
-      'Sony Alpha A6400 Kit 16-50mm',
-      'Rp 75.000 /hari',
-      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800',
-    ),
-    (
-      'Jas Lab Kimia + Goggles',
-      'Rp 15.000 /hari',
-      'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=800',
-    ),
-    (
-      'Casio FX-991EX Ilmiah',
-      'Rp 10.000 /hari',
-      'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?w=800',
-    ),
-    (
-      'Raket Badminton',
-      'Rp 20.000 /hari',
-      'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -183,22 +162,45 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            sliver: SliverGrid.builder(
-              itemCount: products.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: .61,
-              ),
-              itemBuilder: (_, index) {
-                final product = products[index];
-                return ProductCard(
-                  title: product.$1,
-                  price: product.$2,
-                  imageUrl: product.$3,
+          SliverToBoxAdapter(
+            child: FutureBuilder<List<Item>>(
+              future: itemRepository.getItems(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text('Gagal memuat barang dari database.'),
+                    ),
+                  );
+                }
+                final items = snapshot.data!;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: items.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: .61,
+                  ),
+                  itemBuilder: (_, index) {
+                    final item = items[index];
+                    return ProductCard(
+                      title: item.title,
+                      price: 'Rp ${item.pricePerDay} /hari',
+                      imageUrl: item.imageUrl,
+                      onTap: () => context.push('/items/${item.id}'),
+                    );
+                  },
                 );
               },
             ),
