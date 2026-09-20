@@ -1,0 +1,33 @@
+@import "tailwindcss";
+:root {
+  --background: #fcf8ff;
+  --foreground: #1a1a2e;
+  --primary: #2d6a4f;
+  --mint: #92f7c3;
+  --muted: #747782;
+  --muted-foreground: #646972;
+  color-scheme: light;
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-mint: var(--mint);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --font-sans: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+button, select { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+a, button, input, select, summary { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 4px; }
+.page-container { width: 100%; max-width: 1200px; margin-inline: auto; padding: 24px 16px 32px; }
+.product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (min-width: 640px) {
+  .page-container { padding: 32px; }
+  .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+}
+@media (min-width: 1024px) {
+  .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

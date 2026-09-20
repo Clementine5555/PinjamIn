@@ -47,7 +47,7 @@ select * from (values
   ('Jas Lab Kimia + Goggles', 'Perlengkapan praktikum lengkap dan bersih.', 15000, 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=800', 'Peralatan Lab'),
   ('Casio FX-991EX Ilmiah', 'Kalkulator ilmiah untuk kuliah dan praktikum.', 10000, 'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?w=800', 'Elektronik'),
   ('Raket Badminton', 'Raket badminton ringan untuk olahraga kampus.', 20000, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800', 'Olahraga'),
-  ('Tripod Kamera', 'Tripod stabil untuk foto, video, dan dokumentasi acara.', 18000, 'https://images.unsplash.com/photo-1606986628253-3a2c4bd8541e?w=800', 'Elektronik'),
+  ('Tripod Kamera', 'Tripod stabil untuk foto, video, dan dokumentasi acara.', 18000, 'https://images.unsplash.com/photo-1617706534889-ce17f547abc2?auto=format&fit=crop&w=800&q=80', 'Elektronik'),
   ('Buku Kalkulus Dasar', 'Buku referensi kalkulus untuk mahasiswa semester awal.', 8000, 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800', 'Kuliah'),
   ('Helm Proyek', 'Helm keselamatan untuk praktikum lapangan.', 12000, 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=800', 'Peralatan Lab'),
   ('Bola Basket', 'Bola basket ukuran standar untuk olahraga kampus.', 15000, 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800', 'Olahraga')
