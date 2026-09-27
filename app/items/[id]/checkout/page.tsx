@@ -46,11 +46,12 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
-      let user = sessionData.session?.user;
-      if (!user) {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error || !data.user) throw new Error('Sesi pengguna gagal dibuat. Coba lagi.');
-        user = data.user;
+      const user = sessionData.session?.user;
+      if (!user || user.is_anonymous) {
+        router.push('/login?next=' + encodeURIComponent('/items/' + id + '/checkout'));
+        setSaving(false);
+        submitting.current = false;
+        return;
       }
       const { data: current, error: itemError } = await supabase.from('items').select('*').eq('id', item.id).single();
       if (itemError) throw new Error('Harga dan ketersediaan belum bisa diperiksa. Coba lagi.');

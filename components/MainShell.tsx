@@ -3,7 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, Bell, Home, Search, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Home, Search, UserRound } from 'lucide-react';
+import { useAuth } from './AuthProvider';
+import NotificationBell from './NotificationBell';
+import UserAvatar from './UserAvatar';
 
 const routes = [
   { href: '/', label: 'Home', icon: Home },
@@ -14,6 +17,8 @@ const routes = [
 
 export default function MainShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const permanent = user && !user.is_anonymous;
   const navigation = routes.map(({ href, label, icon: Icon }) => {
     const active = pathname === href;
     return (
@@ -36,15 +41,8 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
           <nav aria-label="Navigasi utama" className="hidden items-center gap-1 md:flex">{navigation}</nav>
           <div className="flex items-center gap-1 sm:gap-3">
             <Link href="/search" aria-label="Cari barang" className="rounded-full p-2 hover:bg-background"><Search size={23} /></Link>
-            <details className="relative">
-              <summary aria-label="Notifikasi" className="flex cursor-pointer list-none rounded-full p-2 hover:bg-background [&::-webkit-details-marker]:hidden"><Bell size={22} /></summary>
-              <div className="absolute right-0 top-12 w-64 rounded-2xl border border-primary/10 bg-white p-4 shadow-lg">
-                <p className="font-bold">Notifikasi</p>
-                <p className="mt-2 text-sm text-muted-foreground">Cek status permintaan sewa di halaman transaksi.</p>
-                <Link href="/transactions" className="mt-3 inline-block text-sm font-semibold text-primary">Lihat transaksi →</Link>
-              </div>
-            </details>
-            <Link href="/profile" aria-label="Buka profil" className="flex size-9 items-center justify-center rounded-full bg-mint/60 text-primary"><UserRound size={20} /></Link>
+            <NotificationBell />
+            <Link href="/profile" aria-label="Buka profil" className="rounded-full">{permanent ? <UserAvatar user={user} className="size-9" decorative /> : <span className="flex size-9 items-center justify-center rounded-full bg-mint/60 text-primary"><UserRound size={20} /></span>}</Link>
           </div>
         </div>
       </header>

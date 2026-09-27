@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah } from '@/lib/items';
+import { useAuth } from '@/components/AuthProvider';
 
 type Rental = {
   id: number;
@@ -20,6 +21,14 @@ type Rental = {
 };
 
 export default function Transactions() {
+  const { user, loading, error } = useAuth();
+  if (loading) return <div className="page-container" role="status">Memuat sesi...</div>;
+  if (error) return <div className="page-container" role="alert">{error}</div>;
+  if (!user) return <div className="page-container"><h1 className="text-2xl font-bold">Transaksi</h1><p className="mt-4 text-sm text-muted-foreground">Masuk untuk melihat riwayat sewamu.</p><Link href="/login?next=%2Ftransactions" className="mt-4 inline-block rounded-full bg-primary px-6 py-3 text-white">Masuk</Link></div>;
+  return <RentalList key={user.id} />;
+}
+
+function RentalList() {
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -48,7 +57,7 @@ export default function Transactions() {
 
   return <div className="page-container">
     <h1 className="text-2xl font-bold">Transaksi</h1>
-    <p className="mt-2 mb-6 text-sm text-muted-foreground">Pantau permintaan sewa dari browser ini.</p>
+    <p className="mt-2 mb-6 text-sm text-muted-foreground">Pantau permintaan sewa milik akunmu.</p>
     {loading ? <p role="status">Memuat transaksi...</p> : error ? <div role="alert" className="rounded-2xl bg-white p-6"><p>{error}</p><button onClick={() => window.location.reload()} className="mt-3 text-primary">Coba lagi</button></div> : rentals.length ? <div className="grid gap-4 md:grid-cols-2">
       {rentals.map(rental => <article key={rental.id} className="rounded-2xl border border-primary/10 bg-white p-5 sm:p-6">
         <span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{rental.status}</span>

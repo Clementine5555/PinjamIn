@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import MainShell from "@/components/MainShell";
+import { AuthProvider } from "@/components/AuthProvider";
+import { NotificationsProvider } from "@/components/NotificationsProvider";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
@@ -13,7 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id" className={inter.variable}>
-      <body className="antialiased"><MainShell>{children}</MainShell></body>
+      <body className="antialiased"><AuthProvider><NotificationsProvider><MainShell>{children}</MainShell></NotificationsProvider></AuthProvider></body>
     </html>
   );
 }
