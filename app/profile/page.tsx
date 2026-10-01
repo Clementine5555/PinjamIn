@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ChangeEvent } from 'react';
-import { ArrowLeftRight, Camera, ChevronRight, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Camera, ChevronRight, PackagePlus, UserRound } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import { useAuth } from '@/components/AuthProvider';
 import UserAvatar from '@/components/UserAvatar';
@@ -89,6 +89,7 @@ export default function Profile() {
       </>}
     </section>
     <Link href="/transactions" className="mt-5 flex items-center gap-3 rounded-2xl bg-white p-5"><ArrowLeftRight className="text-primary" /><span className="flex-1 font-semibold">Transaksi saya</span><ChevronRight size={18} /></Link>
+    {permanent && <Link href="/lend" className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-5"><PackagePlus className="text-primary" /><span className="flex-1 font-semibold">Sewakan barang saya</span><ChevronRight size={18} /></Link>}
     <p className="mt-5 text-sm text-muted-foreground">{permanent ? 'Riwayat sewa mengikuti akunmu. Verifikasi email bukan verifikasi identitas mahasiswa.' : 'Riwayat tamu tetap bisa dilihat selama sesi browser masih tersimpan.'}</p>
   </div></div>;
 }

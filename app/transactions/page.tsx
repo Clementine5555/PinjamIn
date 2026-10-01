@@ -17,7 +17,7 @@ type Rental = {
   end_date: string;
   days: number;
   total_price: number;
-  items: { title: string } | null;
+  items: { title: string; owner_id: string | null } | null;
 };
 
 export default function Transactions() {
@@ -32,6 +32,8 @@ function RentalList() {
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [cancelingId, setCancelingId] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -40,7 +42,7 @@ function RentalList() {
         if (authError) throw authError;
         if (!auth.session) return;
         const { data, error } = await supabase.from('rentals')
-          .select('id,item_id,status,start_date,end_date,days,total_price,items(title)')
+          .select('id,item_id,status,start_date,end_date,days,total_price,items(title,owner_id)')
           .eq('renter_id', auth.session.user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -55,16 +57,33 @@ function RentalList() {
     return () => { active = false; };
   }, []);
 
+  async function cancelRental(rentalId: number) {
+    if (cancelingId !== null || !window.confirm('Batalkan permintaan sewa ini?')) return;
+    setCancelingId(rentalId);
+    setActionError('');
+    try {
+      const { error } = await supabase.rpc('cancel_rental', { p_rental_id: rentalId });
+      if (error) throw error;
+      setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, status: 'Dibatalkan' } : rental));
+    } catch {
+      setActionError('Permintaan gagal dibatalkan. Mungkin sudah diproses pemilik; muat ulang untuk melihat status terbaru.');
+    } finally {
+      setCancelingId(null);
+    }
+  }
+
   return <div className="page-container">
     <h1 className="text-2xl font-bold">Transaksi</h1>
     <p className="mt-2 mb-6 text-sm text-muted-foreground">Pantau permintaan sewa milik akunmu.</p>
+    {actionError && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{actionError}</p>}
     {loading ? <p role="status">Memuat transaksi...</p> : error ? <div role="alert" className="rounded-2xl bg-white p-6"><p>{error}</p><button onClick={() => window.location.reload()} className="mt-3 text-primary">Coba lagi</button></div> : rentals.length ? <div className="grid gap-4 md:grid-cols-2">
       {rentals.map(rental => <article key={rental.id} className="rounded-2xl border border-primary/10 bg-white p-5 sm:p-6">
         <span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{rental.status}</span>
         <h2 className="mt-4 font-bold">{rental.items?.title ?? 'Barang sewaan'}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{format(new Date(rental.start_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })} – {format(new Date(rental.end_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-primary/10 pt-4"><p className="text-sm text-muted-foreground">{rental.days} hari</p><p className="font-bold text-primary">{formatRupiah(rental.total_price)}</p></div>
-        <Link href={`/items/${rental.item_id}`} className="mt-4 inline-block text-sm font-semibold text-primary">Lihat barang →</Link>
+        <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}</div>
+        {rental.status === 'Menunggu persetujuan' && <button type="button" disabled={cancelingId !== null} onClick={() => void cancelRental(rental.id)} className="mt-4 rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">{cancelingId === rental.id ? 'Membatalkan...' : 'Batalkan permintaan'}</button>}
       </article>)}
     </div> : <div className="rounded-2xl bg-white px-6 py-14 text-center">
       <ArrowLeftRight size={36} className="mx-auto mb-4 text-primary" />

@@ -17,6 +17,8 @@ Di dashboard Supabase:
 5. Jalankan supabase/migrations/20260927_require_registered_renters.sql satu kali melalui SQL Editor agar sesi anonim tidak dapat membuat transaksi lewat API.
 6. SMTP bawaan Supabase hanya mengirim ke alamat anggota tim proyek dan dibatasi 2 email per jam. Untuk menguji alamat lain, tambahkan alamat tersebut sebagai anggota tim atau aktifkan Custom SMTP melalui Authentication > Emails > SMTP Settings. Jangan menonaktifkan konfirmasi hanya untuk melewati kendala pengiriman.
 7. Jalankan supabase/migrations/20260927_profile_and_notifications.sql satu kali melalui SQL Editor. Migrasi ini membuat bucket avatar, aturan akses per pengguna, tabel notifikasi, trigger transaksi, data notifikasi untuk transaksi lama, dan mengaktifkan Realtime untuk tabel notifikasi.
+8. Jalankan supabase/migrations/20261001_owner_chat.sql melalui SQL Editor setelah migrasi nomor 7. Migrasi ini menambahkan pemilik barang, foto barang, persetujuan sewa, chat, notifikasi pesan, dan Realtime untuk chat.
+9. Jalankan supabase/migrations/20261001_cancel_rental.sql melalui SQL Editor. Migrasi ini mengizinkan penyewa membatalkan permintaan yang masih menunggu persetujuan dan memberi notifikasi kepada pemilik barang.
 
 Akun tidak muncul di schema public. Buka Authentication > Users untuk melihat akun, atau pilih schema auth lalu tabel users di Table Editor. Gunakan Authentication > Logs untuk melihat kegagalan pengiriman email.
 
@@ -33,6 +35,10 @@ Ikuti template bawaan ConfirmationURL untuk konfirmasi signup, perubahan email, 
 - Foto profil: akun terdaftar dapat mengunggah JPG, PNG, atau WebP maksimal 2 MB. File disimpan di bucket public avatars, sedangkan upload dan perubahan dibatasi ke folder milik pengguna melalui RLS.
 - Notifikasi: permintaan sewa baru dan perubahan status menghasilkan notifikasi milik penyewa. Lonceng menampilkan jumlah belum dibaca dan halaman /notifications menampilkan riwayat lengkap.
 - Checkout meminta akun non-anonim. Migrasi RLS juga menolak pembuatan sewa oleh sesi anonim lewat API. Akses antar pengguna tetap dibatasi renter_id.
+- Setiap akun terdaftar dapat menyewa sekaligus menyewakan barang. Halaman /lend untuk menambahkan barang, meninjau permintaan, dan membuka chat. Penyewa membuka chat dari kartu transaksi. Hanya pemilik barang dan penyewa pada transaksi tersebut yang dapat membaca dan mengirim pesannya.
+- Barang contoh lama belum memiliki pemilik akun (`owner_id` kosong), sehingga chat dan persetujuan pemilik hanya tersedia untuk barang baru yang diunggah dari /lend. Jangan menetapkan pemilik untuk barang lama tanpa memastikan siapa pemilik sebenarnya.
+- Pesan baru dan permintaan sewa pada barang milik akun menghasilkan notifikasi. Chat dapat dipakai setelah permintaan sewa dibuat; pembayaran dan pengiriman barang belum ditangani oleh fitur ini.
+- Penyewa dapat membatalkan permintaan dari /transactions selama statusnya masih "Menunggu persetujuan". Setelah disetujui, pembatalan perlu dibicarakan dengan pemilik melalui chat.
 
 ## Checklist uji email nyata
 
