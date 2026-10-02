@@ -1,5 +1,6 @@
 export type Item = {
   id: number;
+  owner_id: string | null;
   title: string;
   description: string;
   price_per_day: number;
@@ -7,7 +8,12 @@ export type Item = {
   category: string;
   location: string;
   is_available: boolean;
+  is_rented: boolean;
 };
+
+export function itemAvailable(item: Item) {
+  return item.is_available && !item.is_rented;
+}
 
 export function formatRupiah(amount: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);

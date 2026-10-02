@@ -8,11 +8,10 @@ import { id } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah } from '@/lib/items';
 import { useAuth } from '@/components/AuthProvider';
+import RentalStageControl, { type RentalStage } from '@/components/RentalStageControl';
 
-type Rental = {
-  id: number;
+type Rental = RentalStage & {
   item_id: number;
-  status: string;
   start_date: string;
   end_date: string;
   days: number;
@@ -34,6 +33,7 @@ function RentalList() {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [cancelingId, setCancelingId] = useState<number | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -42,7 +42,7 @@ function RentalList() {
         if (authError) throw authError;
         if (!auth.session) return;
         const { data, error } = await supabase.from('rentals')
-          .select('id,item_id,status,start_date,end_date,days,total_price,items(title,owner_id)')
+          .select('id,item_id,status,start_date,end_date,days,total_price,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at,items(title,owner_id)')
           .eq('renter_id', auth.session.user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -72,6 +72,23 @@ function RentalList() {
     }
   }
 
+  async function confirmStage(rentalId: number, stage: 'handoff' | 'return') {
+    if (confirmingId !== null) return;
+    setConfirmingId(rentalId);
+    setActionError('');
+    const { error: confirmError } = await supabase.rpc('confirm_rental_stage', { p_rental_id: rentalId, p_stage: stage });
+    if (confirmError) {
+      setActionError('Konfirmasi gagal. Muat ulang status transaksi lalu coba lagi.');
+    } else {
+      const { data, error: loadError } = await supabase.from('rentals')
+        .select('status,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
+        .eq('id', rentalId).single();
+      if (loadError) setActionError('Konfirmasi tersimpan, tetapi status belum tampil. Muat ulang halaman.');
+      else setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, ...data } : rental));
+    }
+    setConfirmingId(null);
+  }
+
   return <div className="page-container">
     <h1 className="text-2xl font-bold">Transaksi</h1>
     <p className="mt-2 mb-6 text-sm text-muted-foreground">Pantau permintaan sewa milik akunmu.</p>
@@ -83,6 +100,7 @@ function RentalList() {
         <p className="mt-2 text-sm text-muted-foreground">{format(new Date(rental.start_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })} – {format(new Date(rental.end_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-primary/10 pt-4"><p className="text-sm text-muted-foreground">{rental.days} hari</p><p className="font-bold text-primary">{formatRupiah(rental.total_price)}</p></div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}</div>
+        <RentalStageControl rental={rental} role="renter" busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
         {rental.status === 'Menunggu persetujuan' && <button type="button" disabled={cancelingId !== null} onClick={() => void cancelRental(rental.id)} className="mt-4 rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">{cancelingId === rental.id ? 'Membatalkan...' : 'Batalkan permintaan'}</button>}
       </article>)}
     </div> : <div className="rounded-2xl bg-white px-6 py-14 text-center">

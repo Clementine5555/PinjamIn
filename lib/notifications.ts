@@ -8,5 +8,6 @@ export type AppNotification = {
 };
 
 export function notificationHref(value: string) {
-  return value === '/transactions' || value === '/lend' || /^\/chat\/\d+$/.test(value) ? value : '/notifications';
+  if (value === '/lend') return '/lend/requests';
+  return value === '/transactions' || value === '/lend/requests' || /^\/chat\/\d+$/.test(value) ? value : '/notifications';
 }

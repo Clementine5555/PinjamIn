@@ -52,7 +52,7 @@ export default function HomeContent({ items, error, search = false }: { items: I
       <section aria-labelledby="catalog-title">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
-            <h2 id="catalog-title" className="text-lg font-bold tracking-tight sm:text-2xl">{search ? 'Hasil pencarian' : 'Tersedia di dekatmu'}</h2>
+            <h2 id="catalog-title" className="text-lg font-bold tracking-tight sm:text-2xl">{search ? 'Hasil pencarian' : 'Barang di dekatmu'}</h2>
             <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{search ? `${filtered.length} barang ditemukan` : 'Bisa COD langsung di area kampus'}</p>
           </div>
           {!search && <Link href="/search" className="flex shrink-0 items-center text-xs font-semibold text-primary sm:text-sm">Lihat Semua<ChevronRight size={16} /></Link>}

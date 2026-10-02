@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
-import { formatRupiah, type Item } from '@/lib/items';
+import { formatRupiah, itemAvailable, type Item } from '@/lib/items';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function Checkout({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user: currentUser, loading: authLoading } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(1);
@@ -39,7 +41,7 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
 
   async function handleRent(event: React.FormEvent) {
     event.preventDefault();
-    if (!item || submitting.current || !item.is_available) return;
+    if (!item || submitting.current || !itemAvailable(item)) return;
     submitting.current = true;
     setSaving(true);
     setErrorMsg('');
@@ -55,7 +57,8 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
       }
       const { data: current, error: itemError } = await supabase.from('items').select('*').eq('id', item.id).single();
       if (itemError) throw new Error('Harga dan ketersediaan belum bisa diperiksa. Coba lagi.');
-      if (!current.is_available) throw new Error('Maaf, barang ini sudah tidak tersedia.');
+      if (current.owner_id === user.id) throw new Error('Kamu tidak bisa menyewa barang milikmu sendiri.');
+      if (!itemAvailable(current)) { setItem(current); throw new Error('Maaf, barang ini sudah tidak tersedia.'); }
       if (current.price_per_day !== item.price_per_day) {
         setItem(current);
         throw new Error('Harga barang berubah. Periksa total baru lalu konfirmasi ulang.');
@@ -96,7 +99,7 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
           </select>
           <div className="my-6 flex items-center justify-between gap-4 border-y border-primary/10 py-5"><p className="text-sm">Total sewa</p><p className="text-xl font-bold text-primary">{formatRupiah(item.price_per_day * days)}</p></div>
           <p className="mb-5 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><ShieldCheck size={18} className="shrink-0 text-primary" />Ini permintaan sewa, bukan pembayaran. Tunggu persetujuan sebelum serah terima barang.</p>
-          <button disabled={saving || !item.is_available} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : item.is_available ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
+          <button disabled={saving || authLoading || currentUser?.id === item.owner_id || !itemAvailable(item)} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : currentUser?.id === item.owner_id ? 'Tidak bisa menyewa barang sendiri' : itemAvailable(item) ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
         </form>}
         {errorMsg && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{errorMsg}</p>}
       </div>}

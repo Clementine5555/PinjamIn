@@ -3,15 +3,15 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, Home, Search, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Home, Package, Search, UserRound } from 'lucide-react';
 import { useAuth } from './AuthProvider';
 import NotificationBell from './NotificationBell';
-import UserAvatar from './UserAvatar';
+import AccountMenu from './AccountMenu';
 
 const routes = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/search', label: 'Cari', icon: Search },
-  { href: '/transactions', label: 'Transaksi', icon: ArrowLeftRight },
+  { href: '/transactions', label: 'Pesanan', icon: ArrowLeftRight },
   { href: '/profile', label: 'Profil', icon: UserRound },
 ];
 
@@ -19,8 +19,9 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const permanent = user && !user.is_anonymous;
-  const navigation = routes.map(({ href, label, icon: Icon }) => {
-    const active = pathname === href;
+  const visibleRoutes = permanent ? [...routes.slice(0, 3), { href: '/lend/items', label: 'Barang saya', icon: Package }, routes[3]] : routes;
+  const navigation = visibleRoutes.map(({ href, label, icon: Icon }) => {
+    const active = href === '/lend/items' ? pathname.startsWith('/lend') : pathname === href;
     return (
       <Link key={href} href={href} aria-current={active ? 'page' : undefined}
         className={`flex min-w-0 flex-1 flex-col items-center gap-1 text-xs font-semibold transition-colors md:flex-none md:flex-row md:gap-2 md:rounded-full md:px-4 md:py-2 md:text-sm ${active ? 'text-primary md:bg-mint/30' : 'text-muted-foreground hover:text-primary'}`}>
@@ -42,7 +43,7 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1 sm:gap-3">
             <Link href="/search" aria-label="Cari barang" className="rounded-full p-2 hover:bg-background"><Search size={23} /></Link>
             <NotificationBell />
-            <Link href="/profile" aria-label="Buka profil" className="rounded-full">{permanent ? <UserAvatar user={user} className="size-9" decorative /> : <span className="flex size-9 items-center justify-center rounded-full bg-mint/60 text-primary"><UserRound size={20} /></span>}</Link>
+            <AccountMenu />
           </div>
         </div>
       </header>
