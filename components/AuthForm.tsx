@@ -50,7 +50,7 @@ export default function AuthForm({ mode, next = '/profile' }: { mode: Mode; next
   const showNameError = !nameIsValid && (attempted || name.length > 0);
   const showPasswordError = needsNewPassword ? !passwordIsValid && (attempted || password.length > 0) : mode === 'login' && !loginPasswordIsValid && attempted;
   const showConfirmationError = needsNewPassword && !confirmationIsValid && (attempted || confirmation.length > 0);
-  const titles = { login: 'Selamat datang kembali', register: 'Buat akun PinjamIn', forgot: 'Lupa kata sandi?', password: 'Atur kata sandi' };
+  const titles = { login: 'Selamat datang kembali', register: 'Buat akun SERU', forgot: 'Lupa kata sandi?', password: 'Atur kata sandi' };
   const link = (path: string) => path + '?next=' + encodeURIComponent(destination);
   const callback = (flow: string) => window.location.origin + '/auth/confirm?flow=' + flow + '&next=' + encodeURIComponent(destination);
 

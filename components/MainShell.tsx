@@ -35,9 +35,9 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
       <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3">Ke konten utama</a>
       <header className="sticky top-0 z-30 border-b border-primary/5 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-18 max-w-[1200px] items-center justify-between gap-3 px-4 sm:px-8 md:h-20">
-          <Link href="/" aria-label="PinjamIn Home" className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-primary">
+          <Link href="/" aria-label="SERU Home" className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-primary">
             <Image src="/pinjamin-logo.png" width={36} height={36} alt="" className="rounded-lg" />
-            PinjamIn
+            SERU
           </Link>
           <nav aria-label="Navigasi utama" className="hidden items-center gap-1 md:flex">{navigation}</nav>
           <div className="flex items-center gap-1 sm:gap-3">

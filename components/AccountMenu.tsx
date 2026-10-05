@@ -86,7 +86,7 @@ function AccountPanel({ user }: { user: User | null }) {
     <summary aria-label="Buka menu akun" className="flex cursor-pointer list-none rounded-full [&::-webkit-details-marker]:hidden">{user ? <UserAvatar user={user} className="size-9" decorative /> : <span className="flex size-9 items-center justify-center rounded-full bg-mint/60 text-primary"><UserRound size={20} /></span>}</summary>
     <div className="absolute right-0 top-12 z-50 max-h-[calc(100dvh-11rem)] w-[min(21rem,calc(100vw-1rem))] overflow-y-auto rounded-2xl border border-primary/10 bg-white p-4 shadow-lg md:max-h-[calc(100dvh-6rem)]">
       {user ? <>
-        <Link href="/profile" onClick={close} className="flex items-center gap-3 border-b border-primary/10 pb-4"><UserAvatar user={user} className="size-12" decorative /><span className="min-w-0"><span className="block truncate font-semibold">{savedName || 'Pengguna PinjamIn'}</span><span className="block truncate text-xs text-muted-foreground">{user.email}</span></span></Link>
+        <Link href="/profile" onClick={close} className="flex items-center gap-3 border-b border-primary/10 pb-4"><UserAvatar user={user} className="size-12" decorative /><span className="min-w-0"><span className="block truncate font-semibold">{savedName || 'Pengguna SERU'}</span><span className="block truncate text-xs text-muted-foreground">{user.email}</span></span></Link>
         <button type="button" onClick={() => { setEditing(!editing); setError(''); setMessage(''); }} className="mt-3 block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-mint/20">{editing ? 'Tutup edit profil' : 'Edit profil'}</button>
         {editing && <form onSubmit={saveName} className="space-y-3 rounded-xl bg-background p-3">
           <label className="block text-xs font-semibold">Foto profil<span className="mt-2 flex cursor-pointer items-center gap-2 text-primary"><Camera size={16} />Ganti foto</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={uploadAvatar} className="sr-only" /></label>
@@ -97,7 +97,7 @@ function AccountPanel({ user }: { user: User | null }) {
         <Link href="/auth/password" onClick={close} className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-mint/20">{user.user_metadata.needs_password ? 'Buat kata sandi' : 'Ubah kata sandi'}</Link>
         <button type="button" disabled={busy} onClick={() => void logout()} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Keluar</button>
       </> : <>
-        <p className="mb-3 font-semibold">Akun PinjamIn</p>
+        <p className="mb-3 font-semibold">Akun SERU</p>
         <Link href="/login" onClick={close} className="block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-mint/20">Masuk</Link>
         <Link href="/register" onClick={close} className="block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-mint/20">Daftar</Link>
       </>}

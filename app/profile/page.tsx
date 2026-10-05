@@ -15,7 +15,7 @@ export default function Profile() {
     <section className="rounded-2xl border border-primary/10 bg-white p-6 text-center sm:p-8">
       {permanent ? <>
         <div className="mx-auto mb-4 w-fit"><UserAvatar user={user} className="size-24 text-2xl" /></div>
-        <h2 className="break-words text-xl font-bold">{String(user.user_metadata.full_name || 'Pengguna PinjamIn')}</h2>
+        <h2 className="break-words text-xl font-bold">{String(user.user_metadata.full_name || 'Pengguna SERU')}</h2>
         <p className="mt-2 break-all text-sm text-muted-foreground">{user.email}</p>
         <span className="mt-3 inline-block rounded-full bg-mint/40 px-3 py-1 text-xs text-primary">{user.email_confirmed_at ? 'Email terverifikasi' : 'Email belum terverifikasi'}</span>
         <p className="mt-4 text-xs text-muted-foreground">Edit profil dan pengaturan akun tersedia lewat foto profil di kanan atas.</p>
