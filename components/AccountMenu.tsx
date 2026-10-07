@@ -95,6 +95,7 @@ function AccountPanel({ user }: { user: User | null }) {
           {nameChanged && <button disabled={busy} className="w-full rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Menyimpan...' : 'Simpan profil'}</button>}
         </form>}
         <Link href="/auth/password" onClick={close} className="mt-1 block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-mint/20">{user.user_metadata.needs_password ? 'Buat kata sandi' : 'Ubah kata sandi'}</Link>
+        {user.app_metadata.seru_role === 'admin' && <Link href="/admin" onClick={close} className="block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-mint/20">Panel pengelola</Link>}
         <button type="button" disabled={busy} onClick={() => void logout()} className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Keluar</button>
       </> : <>
         <p className="mb-3 font-semibold">Akun SERU</p>

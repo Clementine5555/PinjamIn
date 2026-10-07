@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 
 type Rental = { id: number; item_id: number; renter_id: string; status: string; items: { title: string; owner_id: string | null } | null };
-type Review = { rating: number; comment: string; is_published: boolean };
+type Review = { rating: number; comment: string; moderation_status: string };
 type Report = { reason: string; details: string; status: string };
 const reasons = ['Barang rusak', 'Tidak sesuai deskripsi', 'Terlambat', 'Lainnya'] as const;
 
@@ -38,7 +38,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       const queries = [
         supabase.from('rental_reports').select('reason,details,status').eq('rental_id', rentalId).eq('reporter_id', user!.id).maybeSingle(),
         current.renter_id === user!.id
-          ? supabase.from('rental_reviews').select('rating,comment,is_published').eq('rental_id', rentalId).maybeSingle()
+          ? supabase.from('rental_reviews').select('rating,comment,moderation_status').eq('rental_id', rentalId).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
       ] as const;
       const [reportResult, reviewResult] = await Promise.all(queries);
@@ -59,7 +59,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     setSaving('review'); setActionError('');
     const { data, error: saveError } = await supabase.from('rental_reviews').insert({
       rental_id: rental.id, item_id: rental.item_id, reviewer_id: user.id, rating, comment,
-    }).select('rating,comment,is_published').single();
+    }).select('rating,comment,moderation_status').single();
     if (saveError) setActionError('Ulasan gagal disimpan. Periksa status transaksi lalu coba lagi.');
     else setReview(data);
     setSaving(null);
@@ -96,7 +96,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {actionError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{actionError}</p>}
     {rental.renter_id === user.id && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Ulasan barang</h2>
-      {review ? <><p className="mt-3 font-semibold text-primary">{review.rating} dari 5 bintang</p><p className="mt-2 whitespace-pre-wrap text-sm">{review.comment || 'Tanpa komentar'}</p>{review.comment && !review.is_published && <p className="mt-2 text-xs text-muted-foreground">Komentar menunggu moderasi sebelum tampil di katalog.</p>}</>
+      {review ? <><p className="mt-3 font-semibold text-primary">{review.rating} dari 5 bintang</p><p className="mt-2 whitespace-pre-wrap text-sm">{review.comment || 'Tanpa komentar'}</p><p className="mt-2 text-xs text-muted-foreground">Status ulasan: {review.moderation_status}. {review.moderation_status === 'Menunggu' ? 'Ulasan akan tampil di katalog setelah disetujui pengelola.' : review.moderation_status === 'Ditolak' ? 'Ulasan tidak ditampilkan di katalog.' : ''}</p></>
         : rental.status !== 'Selesai' ? <p className="mt-3 text-sm text-muted-foreground">Ulasan tersedia setelah sewa selesai.</p>
         : <form onSubmit={submitReview} className="mt-4 space-y-4"><label className="block text-sm font-semibold">Rating<select value={rating} onChange={event => setRating(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-primary/20 bg-white px-4 py-3">{[5, 4, 3, 2, 1].map(value => <option key={value} value={value}>{value} bintang</option>)}</select></label><label className="block text-sm font-semibold">Komentar (opsional)<textarea name="comment" minLength={10} maxLength={500} rows={4} placeholder="Ceritakan pengalamanmu dengan barang ini" className="mt-2 w-full rounded-xl border border-primary/20 px-4 py-3" /></label><button disabled={saving !== null || !!error} className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving === 'review' ? 'Menyimpan...' : 'Kirim ulasan'}</button></form>}
     </section>}
