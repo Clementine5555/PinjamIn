@@ -10,6 +10,7 @@ export default function Profile() {
   if (loading) return <div className="page-container" role="status">Memuat profil...</div>;
   if (error) return <div className="page-container" role="alert">{error}</div>;
   const permanent = user && !user.is_anonymous;
+  const isAdmin = user?.app_metadata.seru_role === 'admin';
   return <div className="page-container"><div className="mx-auto max-w-2xl">
     <h1 className="mb-6 text-2xl font-bold">Profil</h1>
     <section className="rounded-2xl border border-primary/10 bg-white p-6 text-center sm:p-8">
@@ -26,6 +27,7 @@ export default function Profile() {
         <div className="mt-6 flex flex-wrap justify-center gap-3"><Link href="/login" className="rounded-full bg-primary px-6 py-3 font-semibold text-white">Masuk</Link><Link href="/register" className="rounded-full border border-primary px-6 py-3 font-semibold text-primary">Daftar</Link></div>
       </>}
     </section>
+    {isAdmin ? <Link href="/admin" className="mt-6 flex items-center gap-3 rounded-2xl bg-white p-5"><UserRound className="text-primary" /><span className="flex-1 font-semibold">Panel pengelola</span><ChevronRight size={18} /></Link> : <>
     <h2 className="mt-6 mb-2 text-sm font-semibold text-muted-foreground">Sebagai penyewa</h2>
     <Link href="/transactions" className="flex items-center gap-3 rounded-2xl bg-white p-5"><ArrowLeftRight className="text-primary" /><span className="flex-1 font-semibold">Pesanan saya</span><ChevronRight size={18} /></Link>
     {permanent && <>
@@ -33,6 +35,7 @@ export default function Profile() {
       <Link href="/lend/items" className="flex items-center gap-3 rounded-2xl bg-white p-5"><PackagePlus className="text-primary" /><span className="flex-1 font-semibold">Barang saya</span><ChevronRight size={18} /></Link>
       <Link href="/lend/requests" className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-5"><ArrowLeftRight className="text-primary" /><span className="flex-1 font-semibold">Permintaan masuk</span><ChevronRight size={18} /></Link>
     </>}
-    <p className="mt-5 text-sm text-muted-foreground">{permanent ? 'Riwayat sewa mengikuti akunmu. Verifikasi email bukan verifikasi identitas mahasiswa.' : 'Riwayat tamu tetap bisa dilihat selama sesi browser masih tersimpan.'}</p>
+    </>}
+    <p className="mt-5 text-sm text-muted-foreground">{isAdmin ? 'Akun ini khusus untuk mengelola laporan dan ulasan.' : permanent ? 'Riwayat sewa mengikuti akunmu. Verifikasi email bukan verifikasi identitas mahasiswa.' : 'Riwayat tamu tetap bisa dilihat selama sesi browser masih tersimpan.'}</p>
   </div></div>;
 }

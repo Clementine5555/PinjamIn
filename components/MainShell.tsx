@@ -19,7 +19,8 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const permanent = user && !user.is_anonymous;
-  const visibleRoutes = permanent ? [...routes.slice(0, 3), { href: '/lend/items', label: 'Barang saya', icon: Package }, routes[3]] : routes;
+  const isAdmin = user?.app_metadata.seru_role === 'admin';
+  const visibleRoutes = isAdmin ? [routes[0], routes[1], routes[3]] : permanent ? [...routes.slice(0, 3), { href: '/lend/items', label: 'Barang saya', icon: Package }, routes[3]] : routes;
   const navigation = visibleRoutes.map(({ href, label, icon: Icon }) => {
     const active = href === '/lend/items' ? pathname.startsWith('/lend') : pathname === href;
     return (
@@ -66,7 +67,7 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
               <div className="mt-5 flex flex-col items-start gap-3 text-sm text-white/75">
                 <Link href="/" className="transition-colors hover:text-mint">Beranda</Link>
                 <Link href="/search" className="transition-colors hover:text-mint">Katalog barang</Link>
-                <Link href="/transactions" className="transition-colors hover:text-mint">Pesanan saya</Link>
+                {isAdmin ? <Link href="/admin" className="transition-colors hover:text-mint">Panel pengelola</Link> : <Link href="/transactions" className="transition-colors hover:text-mint">Pesanan saya</Link>}
               </div>
             </div>
             <div>

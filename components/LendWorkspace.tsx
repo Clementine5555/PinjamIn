@@ -207,6 +207,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
   if (authLoading) return <div className="page-container" role="status">Memuat sesi...</div>;
   if (authError) return <div className="page-container" role="alert">{authError}</div>;
   if (!userId) return <div className="page-container"><h1 className="text-2xl font-bold">Kelola barang</h1><p className="mt-3">Masuk untuk mengelola barang dan permintaan sewa.</p><Link href="/login?next=%2Flend%2Fitems" className="mt-4 inline-block rounded-full bg-primary px-6 py-3 text-white">Masuk</Link></div>;
+  if (user?.app_metadata.seru_role === 'admin') return <div className="page-container"><h1 className="text-2xl font-bold">Akses pengelola</h1><p className="mt-3 text-sm text-muted-foreground">Akun pengelola tidak dapat menyewakan barang.</p><Link href="/admin" className="mt-4 inline-block text-primary">Buka panel pengelola →</Link></div>;
 
   return <div className="page-container"><div className="mx-auto max-w-3xl space-y-6">
     <div><h1 className="text-2xl font-bold">{section === 'new' ? 'Tambah barang' : section === 'requests' ? 'Permintaan masuk' : 'Barang saya'}</h1><p className="mt-2 text-sm text-muted-foreground">Kelola barang dan permintaan sewa dari satu akun.</p></div>

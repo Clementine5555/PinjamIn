@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   if (!token) return Response.json({ error: 'Masuk terlebih dahulu.' }, { status: 401 });
   const { data: identity, error: authError } = await config.auth.auth.getUser(token);
   if (authError || !identity.user || identity.user.is_anonymous) return Response.json({ error: 'Sesi tidak valid.' }, { status: 401 });
+  if (identity.user.app_metadata.seru_role === 'admin') return Response.json({ error: 'Akun pengelola tidak dapat membuat pembayaran sewa.' }, { status: 403 });
 
   let rentalId: number;
   try {

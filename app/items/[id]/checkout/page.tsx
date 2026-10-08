@@ -55,6 +55,7 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
         submitting.current = false;
         return;
       }
+      if (user.app_metadata.seru_role === 'admin') throw new Error('Akun pengelola tidak dapat menyewa barang.');
       const { data: current, error: itemError } = await supabase.from('items').select('*').eq('id', item.id).single();
       if (itemError) throw new Error('Harga dan ketersediaan belum bisa diperiksa. Coba lagi.');
       if (current.owner_id === user.id) throw new Error('Kamu tidak bisa menyewa barang milikmu sendiri.');
@@ -88,6 +89,7 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
     <div className="mx-auto max-w-xl">
       <Link href={`/items/${id}`} className="mb-6 inline-flex items-center gap-2 text-sm text-primary"><ArrowLeft size={18} />Kembali ke barang</Link>
       <h1 className="mb-6 text-2xl font-bold">Checkout</h1>
+      {currentUser?.app_metadata.seru_role === 'admin' && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">Akun pengelola tidak dapat menyewa barang.</p>}
       {loading ? <p role="status">Memuat barang...</p> : <div className="rounded-2xl border border-primary/10 bg-white p-6 sm:p-8">
         {item && <form onSubmit={handleRent}>
           <p className="text-xs text-muted-foreground">{item.category} · {item.location}</p>
@@ -99,7 +101,7 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
           </select>
           <div className="my-6 flex items-center justify-between gap-4 border-y border-primary/10 py-5"><p className="text-sm">Total sewa</p><p className="text-xl font-bold text-primary">{formatRupiah(item.price_per_day * days)}</p></div>
           <p className="mb-5 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><ShieldCheck size={18} className="shrink-0 text-primary" />Ini permintaan sewa, bukan pembayaran. Tunggu persetujuan sebelum serah terima barang.</p>
-          <button disabled={saving || authLoading || currentUser?.id === item.owner_id || !itemAvailable(item)} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : currentUser?.id === item.owner_id ? 'Tidak bisa menyewa barang sendiri' : itemAvailable(item) ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
+          <button disabled={saving || authLoading || currentUser?.app_metadata.seru_role === 'admin' || currentUser?.id === item.owner_id || !itemAvailable(item)} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : currentUser?.app_metadata.seru_role === 'admin' ? 'Akun pengelola tidak bisa menyewa' : currentUser?.id === item.owner_id ? 'Tidak bisa menyewa barang sendiri' : itemAvailable(item) ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
         </form>}
         {errorMsg && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{errorMsg}</p>}
       </div>}
