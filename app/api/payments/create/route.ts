@@ -27,6 +27,13 @@ export async function POST(request: Request) {
   if (!rental || rental.renter_id !== identity.user.id) return Response.json({ error: 'Transaksi tidak ditemukan.' }, { status: 404 });
   if (rental.status !== 'Disetujui') return Response.json({ error: 'Pembayaran hanya tersedia setelah pemilik menyetujui sewa.' }, { status: 409 });
 
+  const { data: cancellation, error: cancellationError } = await config.admin.from('rental_cancellations')
+    .select('status').eq('rental_id', rentalId).maybeSingle();
+  if (cancellationError) return Response.json({ error: 'Status pembatalan gagal diperiksa.' }, { status: 500 });
+  if (cancellation && ['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellation.status)) {
+    return Response.json({ error: 'Pembatalan sedang ditinjau. Pembayaran ditunda.' }, { status: 409 });
+  }
+
   const { data: previous, error: previousError } = await config.admin.from('rental_payments')
     .select('id,order_id,amount,status,redirect_url,created_at').eq('rental_id', rentalId).maybeSingle();
   if (previousError) return Response.json({ error: 'Pembayaran gagal diperiksa.' }, { status: 500 });

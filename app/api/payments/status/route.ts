@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     .select('id,order_id,amount,status').eq('rental_id', rentalId).maybeSingle();
   if (paymentError) return Response.json({ error: 'Pembayaran gagal dimuat.' }, { status: 500 });
   if (!payment) return Response.json({ status: null });
-  if (payment.status === 'Dibayar') return Response.json({ status: payment.status });
+  if (payment.status === 'Dikembalikan') return Response.json({ status: payment.status });
 
   try {
     const response = await fetch(`https://api.sandbox.midtrans.com/v2/${encodeURIComponent(payment.order_id)}/status`, {
@@ -46,9 +46,12 @@ export async function POST(request: Request) {
     }
     const paid = result.transaction_status === 'settlement' ||
       (result.transaction_status === 'capture' && result.fraud_status === 'accept');
-    if (paid && payment.status !== 'Dikembalikan') {
+    const refunded = result.transaction_status === 'refund';
+    if ((paid && payment.status !== 'Dibayar') || refunded) {
       const { error: updateError } = await config.admin.from('rental_payments').update({
-        status: 'Dibayar', paid_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        status: refunded ? 'Dikembalikan' : 'Dibayar',
+        paid_at: paid ? new Date().toISOString() : undefined,
+        updated_at: new Date().toISOString(),
       }).eq('id', payment.id).eq('status', payment.status);
       if (updateError) throw updateError;
     }

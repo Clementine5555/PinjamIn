@@ -18,6 +18,7 @@ type Rental = RentalStage & {
   total_price: number;
   items: { title: string; owner_id: string | null } | null;
 };
+type Cancellation = { reason: string; status: string; resolution_note: string | null };
 
 export default function Transactions() {
   const { user, loading, error } = useAuth();
@@ -30,11 +31,15 @@ export default function Transactions() {
 function RentalList() {
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
+  const [cancellations, setCancellations] = useState<Record<number, Cancellation>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [cancelingId, setCancelingId] = useState<number | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [requestingId, setRequestingId] = useState<number | null>(null);
+  const [cancellationOpenId, setCancellationOpenId] = useState<number | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
   useEffect(() => {
     let active = true;
     async function load() {
@@ -48,10 +53,15 @@ function RentalList() {
           .order('created_at', { ascending: false });
         if (error) throw error;
         if (data?.length) {
-          const { data: payments, error: paymentError } = await supabase.from('rental_payments')
-            .select('rental_id,status').in('rental_id', data.map(row => row.id));
-          if (paymentError) throw paymentError;
+          const rentalIds = data.map(row => row.id);
+          const [paymentResult, cancellationResult] = await Promise.all([
+            supabase.from('rental_payments').select('rental_id,status').in('rental_id', rentalIds),
+            supabase.from('rental_cancellations').select('rental_id,reason,status,resolution_note').in('rental_id', rentalIds),
+          ]);
+          if (paymentResult.error || cancellationResult.error) throw paymentResult.error ?? cancellationResult.error;
+          const payments = paymentResult.data;
           if (active) setPaymentStatuses(Object.fromEntries((payments ?? []).map(row => [row.rental_id, row.status])));
+          if (active) setCancellations(Object.fromEntries((cancellationResult.data ?? []).map(row => [row.rental_id, row])));
         }
         if (active) setRentals((data ?? []).map(row => ({ ...row, items: Array.isArray(row.items) ? row.items[0] ?? null : row.items })));
       } catch {
@@ -77,6 +87,21 @@ function RentalList() {
     } finally {
       setCancelingId(null);
     }
+  }
+
+  async function requestCancellation(rentalId: number) {
+    const reason = cancellationReason.trim();
+    if (requestingId !== null || reason.length < 5 || reason.length > 500) {
+      setActionError('Alasan pembatalan harus 5 sampai 500 karakter.'); return;
+    }
+    setRequestingId(rentalId); setActionError('');
+    const { error } = await supabase.rpc('request_rental_cancellation', { p_rental_id: rentalId, p_reason: reason });
+    if (error) setActionError('Pengajuan gagal dikirim. Pastikan transaksi belum memasuki serah terima dan coba lagi.');
+    else {
+      setCancellations(current => ({ ...current, [rentalId]: { reason, status: 'Menunggu', resolution_note: null } }));
+      setCancellationOpenId(null); setCancellationReason('');
+    }
+    setRequestingId(null);
   }
 
   async function confirmStage(rentalId: number, stage: 'handoff' | 'return') {
@@ -106,9 +131,14 @@ function RentalList() {
         <h2 className="mt-4 font-bold">{rental.items?.title ?? 'Barang sewaan'}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{format(new Date(rental.start_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })} – {format(new Date(rental.end_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-primary/10 pt-4"><p className="text-sm text-muted-foreground">{rental.days} hari</p><p className="font-bold text-primary">{formatRupiah(rental.total_price)}</p></div>
-        <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}<Link href={`/transactions/${rental.id}/feedback`}>{rental.status === 'Selesai' ? 'Ulasan & bantuan →' : 'Laporkan masalah →'}</Link>{process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED === 'true' && rental.status === 'Disetujui' && <Link href={`/transactions/${rental.id}/payment`}>Pembayaran uji coba →</Link>}</div>
-        <RentalStageControl rental={rental} role="renter" paymentStatus={paymentStatuses[rental.id] ?? null} busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
+        <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}<Link href={`/transactions/${rental.id}/feedback`}>{rental.status === 'Selesai' ? 'Ulasan & bantuan →' : 'Laporkan masalah →'}</Link>{process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED === 'true' && rental.status === 'Disetujui' && !['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellations[rental.id]?.status ?? '') && <Link href={`/transactions/${rental.id}/payment`}>Pembayaran uji coba →</Link>}</div>
+        <RentalStageControl rental={rental} role="renter" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
         {rental.status === 'Menunggu persetujuan' && <button type="button" disabled={cancelingId !== null} onClick={() => void cancelRental(rental.id)} className="mt-4 rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">{cancelingId === rental.id ? 'Membatalkan...' : 'Batalkan permintaan'}</button>}
+        {rental.status === 'Disetujui' && !rental.handoff_renter_confirmed_at && !rental.handoff_owner_confirmed_at && (cancellations[rental.id]
+          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
+          : cancellationOpenId === rental.id
+            ? <form onSubmit={event => { event.preventDefault(); void requestCancellation(rental.id); }} className="mt-4 space-y-3 rounded-xl border border-primary/10 p-4"><label className="block text-sm font-semibold">Alasan pembatalan<textarea required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="mt-2 w-full rounded-xl border border-primary/20 p-3" rows={3} /></label><p className="text-xs text-muted-foreground">Sebelum serah terima. Pembayaran yang sudah berhasil perlu ditinjau untuk refund sandbox.</p><div className="flex gap-3"><button type="submit" disabled={requestingId !== null} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{requestingId === rental.id ? 'Mengirim...' : 'Kirim pengajuan'}</button><button type="button" onClick={() => setCancellationOpenId(null)} className="text-sm text-muted-foreground">Tutup</button></div></form>
+            : <button type="button" onClick={() => { setCancellationOpenId(rental.id); setCancellationReason(''); }} className="mt-4 text-sm font-semibold text-red-700">Ajukan pembatalan →</button>)}
       </article>)}
     </div> : <div className="rounded-2xl bg-white px-6 py-14 text-center">
       <ArrowLeftRight size={36} className="mx-auto mb-4 text-primary" />

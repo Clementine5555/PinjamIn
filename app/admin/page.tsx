@@ -9,6 +9,7 @@ import { formatRupiah } from '@/lib/items';
 type Review = { id: number; rental_id: number; item_id: number; rating: number; comment: string; moderation_status: string; created_at: string };
 type Report = { id: number; rental_id: number; reporter_id: string; reason: string; details: string; status: string; created_at: string };
 type PaymentSummary = { paid_count: number; paid_amount: number; pending_count: number };
+type CancellationRequest = { rental_id: number; reason: string; status: string; resolution_note: string | null; created_at: string };
 
 export default function AdminPage() {
   const { user, loading, error } = useAuth();
@@ -22,6 +23,7 @@ function AdminWorkspace() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
+  const [cancellations, setCancellations] = useState<CancellationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -29,14 +31,15 @@ function AdminWorkspace() {
   useEffect(() => {
     let active = true;
     async function load() {
-      const [reviewResult, reportResult, paymentResult] = await Promise.all([
+      const [reviewResult, reportResult, paymentResult, cancellationResult] = await Promise.all([
         supabase.from('rental_reviews').select('id,rental_id,item_id,rating,comment,moderation_status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.from('rental_reports').select('id,rental_id,reporter_id,reason,details,status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.rpc('admin_payment_summary').single(),
+        supabase.from('rental_cancellations').select('rental_id,reason,status,resolution_note,created_at').order('created_at', { ascending: false }).limit(100),
       ]);
       if (!active) return;
-      if (reviewResult.error || reportResult.error || paymentResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
-      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); }
+      if (reviewResult.error || reportResult.error || paymentResult.error || cancellationResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
+      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); setCancellations(cancellationResult.data ?? []); }
       setLoading(false);
     }
     void load();
@@ -63,6 +66,32 @@ function AdminWorkspace() {
     setBusy(null);
   }
 
+  async function reviewCancellation(rentalId: number, action: 'approve' | 'reject' | 'check') {
+    if (busy) return;
+    setBusy(`cancel-${rentalId}`); setError('');
+    try {
+      const { data: session, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session.session) throw new Error('Sesi berakhir. Masuk kembali.');
+      const response = await fetch('/api/cancellations/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.session.access_token}` },
+        body: JSON.stringify({ rentalId, action }),
+      });
+      const result = await response.json() as { status?: string; resolution_note?: string; error?: string };
+      if (!response.ok || !result.status) throw new Error(result.error || 'Pengajuan gagal diproses.');
+      setCancellations(current => current.map(entry => entry.rental_id === rentalId
+        ? { ...entry, status: result.status!, resolution_note: result.resolution_note ?? entry.resolution_note } : entry));
+      if (result.status === 'Selesai') {
+        const { data } = await supabase.rpc('admin_payment_summary').single();
+        if (data) setPaymentSummary(data as PaymentSummary);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Pengajuan gagal diproses.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return <div className="page-container"><div className="mx-auto max-w-4xl space-y-7">
     <div><h1 className="text-2xl font-bold">Panel pengelola</h1><p className="mt-2 text-sm text-muted-foreground">Pantau pembayaran uji coba, ulasan, dan laporan transaksi.</p></div>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
@@ -74,6 +103,9 @@ function AdminWorkspace() {
           <div className="rounded-xl bg-mint/20 p-4"><p className="text-sm text-muted-foreground">Menunggu pembayaran</p><p className="mt-2 text-xl font-bold text-primary">{paymentSummary.pending_count}</p></div>
         </div>
       </section>}
+      <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Pembatalan & refund sandbox</h2><p className="mt-2 text-sm text-muted-foreground">Hanya sebelum serah terima. Refund otomatis bergantung pada metode dan status Midtrans.</p>
+        {cancellations.length ? <div className="mt-4 space-y-4">{cancellations.map(entry => <article key={entry.rental_id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Transaksi #{entry.rental_id}</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{entry.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm">{entry.reason}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleDateString('id-ID')}{entry.resolution_note ? ` · ${entry.resolution_note}` : ''}</p><div className="mt-3 flex flex-wrap gap-2">{['Menunggu', 'Perlu manual'].includes(entry.status) && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'approve')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === `cancel-${entry.rental_id}` ? 'Memproses...' : 'Setujui & proses'}</button>}{entry.status === 'Menunggu' && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'reject')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button>}{entry.status === 'Diproses' && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'check')} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">Periksa status refund</button>}</div></article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada pengajuan pembatalan.</p>}
+      </section>
       <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Ulasan</h2>
         {reviews.length ? <div className="mt-4 space-y-4">{reviews.map(review => <article key={review.id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold"><Link href={`/items/${review.item_id}`} className="text-primary">Barang #{review.item_id}</Link> · {review.rating}/5</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{review.moderation_status}</span></div><p className="mt-1 text-xs text-muted-foreground">Transaksi #{review.rental_id} · {new Date(review.created_at).toLocaleDateString('id-ID')}</p><p className="mt-3 whitespace-pre-wrap text-sm">{review.comment || 'Tanpa komentar'}</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={busy !== null || review.moderation_status === 'Disetujui'} onClick={() => void moderateReview(review.id, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={busy !== null || review.moderation_status === 'Ditolak'} onClick={() => void moderateReview(review.id, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></div></article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada ulasan.</p>}
       </section>

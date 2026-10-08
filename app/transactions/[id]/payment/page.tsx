@@ -27,6 +27,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   const { user, loading: authLoading } = useAuth();
   const [rental, setRental] = useState<Rental | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
+  const [cancellationStatus, setCancellationStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -36,13 +37,15 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
     if (authLoading || !user || user.is_anonymous || !/^\d+$/.test(id)) return;
     let active = true;
     async function load() {
-      const [rentalResult, paymentResult] = await Promise.all([
+      const [rentalResult, paymentResult, cancellationResult] = await Promise.all([
         supabase.from('rentals').select('id,renter_id,status,total_price').eq('id', Number(id)).maybeSingle(),
         supabase.from('rental_payments').select('amount,status').eq('rental_id', Number(id)).maybeSingle(),
+        supabase.from('rental_cancellations').select('status').eq('rental_id', Number(id)).maybeSingle(),
       ]);
       if (!active) return;
-      if (rentalResult.error || paymentResult.error) setError('Data pembayaran gagal dimuat. Pastikan migrasi database sudah dijalankan.');
+      if (rentalResult.error || paymentResult.error || cancellationResult.error) setError('Data pembayaran gagal dimuat. Pastikan migrasi database sudah dijalankan.');
       else {
+        setCancellationStatus(cancellationResult.data?.status ?? null);
         let currentPayment = paymentResult.data;
         if (currentPayment && !['Dibayar', 'Dikembalikan'].includes(currentPayment.status)) {
           try {
@@ -111,7 +114,8 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       <p className="mt-4 text-sm">Status sewa: <strong>{rental.status}</strong></p><p className="mt-1 text-sm">Status pembayaran: <strong>{payment?.status ?? 'Belum dimulai'}</strong></p>
       <p className="mt-4 text-xs leading-relaxed text-muted-foreground">Biaya platform, premium, dan boost listing belum dikenakan. Persentase dalam BMC masih draft.</p>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {rental.status === 'Disetujui' && !['Dibayar', 'Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment?.status ?? '') && <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Mempersiapkan...' : payment ? 'Lanjutkan pembayaran uji coba' : 'Bayar di sandbox'}</button>}
+      {cancellationStatus && ['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus) && <p className="mt-4 text-sm text-muted-foreground">Pembatalan sedang ditinjau. Pembayaran baru ditunda.</p>}
+      {rental.status === 'Disetujui' && !['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus ?? '') && !['Dibayar', 'Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment?.status ?? '') && <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Mempersiapkan...' : payment ? 'Lanjutkan pembayaran uji coba' : 'Bayar di sandbox'}</button>}
       <button type="button" disabled={checking} onClick={() => void refreshPaymentStatus()} className="mt-3 w-full rounded-full border border-primary/20 px-5 py-3 text-sm font-semibold text-primary disabled:opacity-50">{checking ? 'Memeriksa status...' : 'Periksa status pembayaran'}</button>
     </div>
   </div></div>;

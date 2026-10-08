@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
-select plan(41);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-owner@example.invalid'),
@@ -121,6 +121,19 @@ select is((select status from public.rentals where id = (select first_id from pg
 select ok(not (select is_rented from public.items where title = 'SERU audit item'), 'item becomes available after return');
 select lives_ok($$select public.review_rental((select second_id from pg_temp.audit_ids), 'Disetujui')$$, 'dates become available after completed rental');
 select is((select status from public.rentals where id = (select second_id from pg_temp.audit_ids)), 'Disetujui', 'second request is approved after return');
+
+reset role;
+insert into public.rental_payments (rental_id, order_id, amount, status, paid_at)
+select second_id, 'seru-audit-cancel', 18000, 'Dibayar', now() from pg_temp.audit_ids;
+set local role authenticated;
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+select lives_ok($$select public.request_rental_cancellation((select second_id from pg_temp.audit_ids), 'Jadwal tugas berubah')$$,
+  'renter requests cancellation before handoff');
+select is((select status from public.rental_cancellations where rental_id = (select second_id from pg_temp.audit_ids)),
+  'Menunggu', 'cancellation waits for admin review');
+select throws_ok($$select public.confirm_rental_stage((select second_id from pg_temp.audit_ids), 'handoff')$$,
+  'P0001', null, 'handoff is blocked while cancellation is pending');
 
 select * from finish();
 rollback;

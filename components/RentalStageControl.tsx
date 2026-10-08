@@ -9,10 +9,11 @@ export type RentalStage = {
   return_owner_confirmed_at: string | null;
 };
 
-export default function RentalStageControl({ rental, role, paymentStatus, busy, onConfirm }: {
+export default function RentalStageControl({ rental, role, paymentStatus, cancellationStatus, busy, onConfirm }: {
   rental: RentalStage;
   role: 'renter' | 'owner';
   paymentStatus: string | null;
+  cancellationStatus?: string | null;
   busy: boolean;
   onConfirm: (rentalId: number, stage: 'handoff' | 'return') => void;
 }) {
@@ -22,6 +23,10 @@ export default function RentalStageControl({ rental, role, paymentStatus, busy, 
   const ownerConfirmed = stage === 'handoff' ? rental.handoff_owner_confirmed_at : rental.return_owner_confirmed_at;
   const ownConfirmed = role === 'renter' ? renterConfirmed : ownerConfirmed;
   const title = stage === 'handoff' ? 'Serah terima barang' : 'Pengembalian barang';
+
+  if (stage === 'handoff' && cancellationStatus && ['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus)) {
+    return <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm text-muted-foreground">Pembatalan sedang ditinjau. Serah terima ditunda.</div>;
+  }
 
   if (stage === 'handoff' && paymentStatus !== 'Dibayar') return <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm">
     <p className="font-semibold text-primary">Serah terima barang</p>
