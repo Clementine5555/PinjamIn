@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
-select plan(40);
+select plan(41);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-owner@example.invalid'),
@@ -93,6 +93,13 @@ select is((select status from public.rentals where id = (select second_id from p
 
 set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+select throws_ok($$select public.confirm_rental_stage((select first_id from pg_temp.audit_ids), 'handoff')$$,
+  'P0001', null, 'renter cannot confirm handoff before payment');
+
+reset role;
+insert into public.rental_payments (rental_id, order_id, amount, status, paid_at)
+select first_id, 'seru-audit-paid', 18000, 'Dibayar', now() from pg_temp.audit_ids;
+set local role authenticated;
 select lives_ok($$select public.confirm_rental_stage((select first_id from pg_temp.audit_ids), 'handoff')$$, 'renter confirms handoff');
 
 set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

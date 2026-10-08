@@ -9,6 +9,19 @@ import { formatRupiah } from '@/lib/items';
 type Rental = { id: number; renter_id: string; status: string; total_price: number };
 type Payment = { amount: number; status: string };
 
+async function checkPaymentStatus(rentalId: number) {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session) throw new Error('Sesi berakhir. Masuk kembali.');
+  const response = await fetch('/api/payments/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionData.session.access_token}` },
+    body: JSON.stringify({ rentalId }),
+  });
+  const result = await response.json() as { status?: string | null; error?: string };
+  if (!response.ok) throw new Error(result.error || 'Status pembayaran gagal diperiksa.');
+  return result.status;
+}
+
 export default function PaymentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user, loading: authLoading } = useAuth();
@@ -16,6 +29,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -28,7 +42,19 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       ]);
       if (!active) return;
       if (rentalResult.error || paymentResult.error) setError('Data pembayaran gagal dimuat. Pastikan migrasi database sudah dijalankan.');
-      else { setRental(rentalResult.data); setPayment(paymentResult.data); }
+      else {
+        let currentPayment = paymentResult.data;
+        if (currentPayment && !['Dibayar', 'Dikembalikan'].includes(currentPayment.status)) {
+          try {
+            const status = await checkPaymentStatus(Number(id));
+            if (status) currentPayment = { ...currentPayment, status };
+          } catch (cause) {
+            if (active) setError(cause instanceof Error ? cause.message : 'Status pembayaran gagal diperiksa.');
+          }
+        }
+        if (!active) return;
+        setRental(rentalResult.data); setPayment(currentPayment);
+      }
       setLoading(false);
     }
     void load();
@@ -57,6 +83,19 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  async function refreshPaymentStatus() {
+    if (!rental || checking) return;
+    setChecking(true); setError('');
+    try {
+      const status = await checkPaymentStatus(rental.id);
+      if (status) setPayment(current => current ? { ...current, status } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Status pembayaran gagal diperiksa.');
+    } finally {
+      setChecking(false);
+    }
+  }
+
   if (process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED !== 'true') return <div className="page-container"><p>Pembayaran uji coba belum diaktifkan.</p><Link href="/transactions" className="mt-3 inline-block text-primary">Kembali ke transaksi →</Link></div>;
   if (authLoading) return <div className="page-container" role="status">Memuat sesi...</div>;
   if (!user || user.is_anonymous) return <div className="page-container"><p>Masuk untuk melihat pembayaran.</p><Link href={`/login?next=${encodeURIComponent(`/transactions/${id}/payment`)}`} className="mt-3 inline-block text-primary">Masuk →</Link></div>;
@@ -73,7 +112,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
       <p className="mt-4 text-xs leading-relaxed text-muted-foreground">Biaya platform, premium, dan boost listing belum dikenakan. Persentase dalam BMC masih draft.</p>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {rental.status === 'Disetujui' && !['Dibayar', 'Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment?.status ?? '') && <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Mempersiapkan...' : payment ? 'Lanjutkan pembayaran uji coba' : 'Bayar di sandbox'}</button>}
-      <button type="button" onClick={() => window.location.reload()} className="mt-3 w-full rounded-full border border-primary/20 px-5 py-3 text-sm font-semibold text-primary">Muat ulang status</button>
+      <button type="button" disabled={checking} onClick={() => void refreshPaymentStatus()} className="mt-3 w-full rounded-full border border-primary/20 px-5 py-3 text-sm font-semibold text-primary disabled:opacity-50">{checking ? 'Memeriksa status...' : 'Periksa status pembayaran'}</button>
     </div>
   </div></div>;
 }

@@ -29,6 +29,7 @@ export default function Transactions() {
 
 function RentalList() {
   const [rentals, setRentals] = useState<Rental[]>([]);
+  const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -46,6 +47,12 @@ function RentalList() {
           .eq('renter_id', auth.session.user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
+        if (data?.length) {
+          const { data: payments, error: paymentError } = await supabase.from('rental_payments')
+            .select('rental_id,status').in('rental_id', data.map(row => row.id));
+          if (paymentError) throw paymentError;
+          if (active) setPaymentStatuses(Object.fromEntries((payments ?? []).map(row => [row.rental_id, row.status])));
+        }
         if (active) setRentals((data ?? []).map(row => ({ ...row, items: Array.isArray(row.items) ? row.items[0] ?? null : row.items })));
       } catch {
         if (active) setError('Transaksi gagal dimuat. Periksa koneksi lalu coba lagi.');
@@ -100,7 +107,7 @@ function RentalList() {
         <p className="mt-2 text-sm text-muted-foreground">{format(new Date(rental.start_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })} – {format(new Date(rental.end_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-primary/10 pt-4"><p className="text-sm text-muted-foreground">{rental.days} hari</p><p className="font-bold text-primary">{formatRupiah(rental.total_price)}</p></div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}<Link href={`/transactions/${rental.id}/feedback`}>{rental.status === 'Selesai' ? 'Ulasan & bantuan →' : 'Laporkan masalah →'}</Link>{process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED === 'true' && rental.status === 'Disetujui' && <Link href={`/transactions/${rental.id}/payment`}>Pembayaran uji coba →</Link>}</div>
-        <RentalStageControl rental={rental} role="renter" busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
+        <RentalStageControl rental={rental} role="renter" paymentStatus={paymentStatuses[rental.id] ?? null} busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
         {rental.status === 'Menunggu persetujuan' && <button type="button" disabled={cancelingId !== null} onClick={() => void cancelRental(rental.id)} className="mt-4 rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">{cancelingId === rental.id ? 'Membatalkan...' : 'Batalkan permintaan'}</button>}
       </article>)}
     </div> : <div className="rounded-2xl bg-white px-6 py-14 text-center">

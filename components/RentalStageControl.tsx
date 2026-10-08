@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export type RentalStage = {
   id: number;
   status: string;
@@ -7,9 +9,10 @@ export type RentalStage = {
   return_owner_confirmed_at: string | null;
 };
 
-export default function RentalStageControl({ rental, role, busy, onConfirm }: {
+export default function RentalStageControl({ rental, role, paymentStatus, busy, onConfirm }: {
   rental: RentalStage;
   role: 'renter' | 'owner';
+  paymentStatus: string | null;
   busy: boolean;
   onConfirm: (rentalId: number, stage: 'handoff' | 'return') => void;
 }) {
@@ -19,6 +22,12 @@ export default function RentalStageControl({ rental, role, busy, onConfirm }: {
   const ownerConfirmed = stage === 'handoff' ? rental.handoff_owner_confirmed_at : rental.return_owner_confirmed_at;
   const ownConfirmed = role === 'renter' ? renterConfirmed : ownerConfirmed;
   const title = stage === 'handoff' ? 'Serah terima barang' : 'Pengembalian barang';
+
+  if (stage === 'handoff' && paymentStatus !== 'Dibayar') return <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm">
+    <p className="font-semibold text-primary">Serah terima barang</p>
+    <p className="mt-1 text-muted-foreground">Serah terima tersedia setelah pembayaran berhasil.</p>
+    {role === 'renter' ? <Link href={`/transactions/${rental.id}/payment`} className="mt-2 inline-block font-semibold text-primary">{paymentStatus === 'Menunggu' ? 'Periksa pembayaran →' : 'Bayar sewa →'}</Link> : <p className="mt-2 text-muted-foreground">Menunggu pembayaran penyewa.</p>}
+  </div>;
 
   return <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm">
     <p className="font-semibold text-primary">{title}</p>

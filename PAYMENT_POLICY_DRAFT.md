@@ -6,7 +6,7 @@
 2. Pemilik menyetujui permintaan dan jadwal dikunci oleh aturan sewa yang sudah ada.
 3. Penyewa membayar total sewa yang tersimpan di transaksi. Integrasi saat ini hanya Midtrans sandbox, nonaktif secara bawaan.
 4. Status pembayaran berubah dari notifikasi Midtrans yang diverifikasi, bukan dari URL kembali atau input browser.
-5. Serah terima, pengembalian, dan sengketa tetap mengikuti alur sewa yang sudah ada. Pembayaran sandbox belum menjadi syarat serah terima; jangan aktifkan pembayaran produksi sebelum gerbang ini dan aturan refund disepakati.
+5. Serah terima baru dapat dikonfirmasi setelah pembayaran sandbox tercatat sebagai Dibayar. Pengembalian dan sengketa tetap mengikuti alur sewa yang sudah ada. Jangan aktifkan pembayaran produksi sebelum aturan refund dan pencairan disepakati.
 
 ## Keputusan produk yang masih draft
 
