@@ -1,36 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SERU
 
-## Getting Started
+Website sewa barang antarmahasiswa. Proyek ini menggunakan Next.js, Supabase, dan Midtrans **sandbox** untuk demonstrasi pembayaran. Tidak ada transfer uang nyata ke pemilik melalui aplikasi.
 
-First, run the development server:
+## Menjalankan lokal
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Salin nilai yang dibutuhkan dari `.env.example` ke `.env.local`. Jangan unggah `.env.local` atau kunci server ke Git.
+2. Jalankan `npm install` lalu `npm run dev`.
+3. Buka `http://localhost:3000`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Untuk web yang sudah dideploy di Vercel, tidak perlu menjalankan server lokal. Push dan redeploy tetap dikerjakan pemilik repositori.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database dan pembayaran
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Jalankan migrasi SQL di `supabase/migrations` sesuai urutan nama file. Yang terbaru untuk simulasi pembagian hasil adalah `20261009_sandbox_payouts.sql`.
+- Langkah konfigurasi akun admin dan Midtrans sandbox ada di `PAYMENT_POLICY_DRAFT.md`.
+- Komisi 10% dan bagian pemilik 90% saat ini hanya **angka draft simulasi** untuk demo. Premium, boost listing, biaya gateway, pajak, dan pencairan sungguhan belum diterapkan.
 
-## Learn More
+## Pemeriksaan dan demo
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run build` untuk memeriksa build produksi.
+- `npm run lint` untuk pemeriksaan kode.
+- `supabase/tests/rental_flow.test.sql` berisi uji aturan database berbasis pgTAP; jalankan hanya pada database pengujian yang sudah menerima seluruh migrasi.
+- Urutan uji pengguna dan alur demo ada di `DEMO_CHECKLIST.md`. Hasil build tidak menggantikan pengujian langsung dengan akun penyewa, pemilik, dan admin.

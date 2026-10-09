@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
-select plan(54);
+select plan(67);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-owner@example.invalid'),
@@ -119,6 +119,45 @@ set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","r
 select lives_ok($$select public.confirm_rental_stage((select first_id from pg_temp.audit_ids), 'return')$$, 'owner completes rental');
 select is((select status from public.rentals where id = (select first_id from pg_temp.audit_ids)), 'Selesai', 'both return confirmations complete rental');
 select ok(not (select is_rented from public.items where title = 'SERU audit item'), 'item becomes available after return');
+select is((select count(*)::integer from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  1, 'completed paid rental creates one payout simulation');
+select is((select platform_fee from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  1800, 'draft 10 percent platform fee is calculated');
+select is((select owner_amount from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  16200, 'owner share matches rent less platform fee');
+select throws_ok($$select public.mark_sandbox_payout((select first_id from pg_temp.audit_ids))$$,
+  'P0001', null, 'owner cannot mark own payout simulation');
+
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+select is((select count(*)::integer from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  0, 'renter cannot read owner payout simulation');
+select lives_ok($$insert into public.rental_reports (rental_id, reporter_id, reason, details)
+  select first_id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Lainnya', 'Barang kembali tetapi ada masalah kecil.'
+  from pg_temp.audit_ids$$, 'renter can report a completed rental');
+
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select is((select status from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  'Perlu peninjauan', 'open report flags the payout simulation');
+
+set local request.jwt.claim.sub = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local request.jwt.claims = '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","is_anonymous":false,"app_metadata":{"seru_role":"admin"}}';
+select throws_ok($$select public.mark_sandbox_payout((select first_id from pg_temp.audit_ids))$$,
+  'P0001', null, 'admin cannot mark payout while report is open');
+select lives_ok($$update public.rental_reports set status = 'Selesai'
+  where rental_id = (select first_id from pg_temp.audit_ids)$$, 'admin resolves rental report');
+select is((select public.mark_sandbox_payout((select first_id from pg_temp.audit_ids))),
+  'Tercatat simulasi', 'admin records payout simulation after report closes');
+select is((select status from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  'Tercatat simulasi', 'payout simulation status is saved');
+select lives_ok($$update public.rental_reports set status = 'Baru'
+  where rental_id = (select first_id from pg_temp.audit_ids)$$, 'admin can reopen a report');
+select is((select status from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
+  'Perlu peninjauan', 'reopened report flags a recorded payout for review');
+
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
 select lives_ok($$select public.review_rental((select second_id from pg_temp.audit_ids), 'Disetujui')$$, 'dates become available after completed rental');
 select is((select status from public.rentals where id = (select second_id from pg_temp.audit_ids)), 'Disetujui', 'second request is approved after return');
 

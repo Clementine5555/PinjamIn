@@ -11,6 +11,7 @@ import OwnerItemEditor from '@/components/OwnerItemEditor';
 type OwnedItem = Item;
 type IncomingRental = RentalStage & { item_id: number; start_date: string; end_date: string };
 type Cancellation = { status: string; requested_by: string; resolution_note: string | null };
+type Payout = { rental_id: number; gross_amount: number; platform_fee: number; owner_amount: number; status: string };
 
 export default function LendWorkspace({ section }: { section: 'new' | 'items' | 'requests' }) {
   const { user, loading: authLoading, error: authError } = useAuth();
@@ -18,6 +19,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
   const [rentals, setRentals] = useState<IncomingRental[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
   const [cancellations, setCancellations] = useState<Record<number, Cancellation>>({});
+  const [payouts, setPayouts] = useState<Record<number, Payout>>({});
   const [cancellationOpenId, setCancellationOpenId] = useState<number | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
@@ -51,16 +53,18 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
           if (rentalError) throw rentalError;
           if (requests?.length) {
             const rentalIds = requests.map(rental => rental.id);
-            const [paymentResult, cancellationResult] = await Promise.all([
+            const [paymentResult, cancellationResult, payoutResult] = await Promise.all([
               supabase.from('rental_payments').select('rental_id,status').in('rental_id', rentalIds),
               supabase.from('rental_cancellations').select('rental_id,status,requested_by,resolution_note').in('rental_id', rentalIds),
+              supabase.from('rental_payouts').select('rental_id,gross_amount,platform_fee,owner_amount,status').in('rental_id', rentalIds),
             ]);
-            if (paymentResult.error || cancellationResult.error) throw paymentResult.error ?? cancellationResult.error;
+            if (paymentResult.error || cancellationResult.error || payoutResult.error) throw paymentResult.error ?? cancellationResult.error ?? payoutResult.error;
             if (active) setPaymentStatuses(Object.fromEntries((paymentResult.data ?? []).map(payment => [payment.rental_id, payment.status])));
             if (active) setCancellations(Object.fromEntries((cancellationResult.data ?? []).map(cancellation => [cancellation.rental_id, cancellation])));
+            if (active) setPayouts(Object.fromEntries((payoutResult.data ?? []).map(payout => [payout.rental_id, payout])));
           }
           if (active) setRentals((requests ?? []) as IncomingRental[]);
-        } else if (active) { setRentals([]); setPaymentStatuses({}); setCancellations({}); }
+        } else if (active) { setRentals([]); setPaymentStatuses({}); setCancellations({}); setPayouts({}); }
       } catch {
         if (active) setError('Data pemilik gagal dimuat. Pastikan migrasi database chat sudah dijalankan.');
       } finally {
@@ -242,7 +246,14 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         .select('status,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
         .eq('id', rentalId).single();
       if (loadError) setError('Konfirmasi tersimpan, tetapi status belum tampil. Muat ulang halaman.');
-      else setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, ...data } : rental));
+      else {
+        setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, ...data } : rental));
+        if (data.status === 'Selesai') {
+          const { data: payout } = await supabase.from('rental_payouts')
+            .select('rental_id,gross_amount,platform_fee,owner_amount,status').eq('rental_id', rentalId).maybeSingle();
+          if (payout) setPayouts(current => ({ ...current, [rentalId]: payout }));
+        }
+      }
     }
     setConfirming(null);
   }
@@ -285,6 +296,11 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
           <Link href={`/transactions/${rental.id}/feedback`} className="text-sm font-semibold text-primary">Laporkan masalah →</Link>
         </div>
         <RentalStageControl rental={rental} role="owner" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirming !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
+        {payouts[rental.id] && <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm">
+          <p className="font-semibold text-primary">Bagian pemilik (simulasi): {formatRupiah(payouts[rental.id].owner_amount)}</p>
+          <p className="mt-1 text-muted-foreground">Harga sewa {formatRupiah(payouts[rental.id].gross_amount)} · Komisi platform draft {formatRupiah(payouts[rental.id].platform_fee)} · {payouts[rental.id].status}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Belum ada transfer dana nyata.</p>
+        </div>}
         {rental.status === 'Disetujui' && !rental.handoff_renter_confirmed_at && !rental.handoff_owner_confirmed_at && (cancellations[rental.id]
           ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan {cancellations[rental.id].requested_by === 'owner' ? 'oleh pemilik' : 'oleh penyewa'}: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
           : cancellationOpenId === rental.id

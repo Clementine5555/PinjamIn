@@ -32,3 +32,11 @@
 - Barang contoh lama tidak memiliki pemilik akun sehingga tidak menyediakan chat pemilik.
 - Menambahkan pembatalan permintaan sewa yang masih menunggu persetujuan dari halaman transaksi. Database memastikan hanya penyewa dapat membatalkan permintaannya sendiri; pemilik mendapat notifikasi bila barang mempunyai akun pemilik.
 - Menambahkan migrasi supabase/migrations/20261001_cancel_rental.sql untuk fungsi pembatalan yang perlu dijalankan setelah migrasi pemilik dan chat.
+
+## 9 Oktober 2026 - Simulasi pembagian hasil SERU
+
+- Menambahkan ledger simulasi setelah transaksi berstatus Selesai dan pembayaran sandbox berstatus Dibayar. Draft demo menggunakan komisi platform 10% dan bagian pemilik 90%; tidak ada transfer dana nyata.
+- Menampilkan nominal simulasi di halaman permintaan pemilik dan panel admin. Admin dapat mencatat pencairan simulasi setelah laporan diselesaikan.
+- Refund atau laporan baru menandai catatan untuk peninjauan. Migrasi `supabase/migrations/20261009_sandbox_payouts.sql` harus dijalankan sebelum tampilan baru dipakai.
+- Memperluas tes SQL untuk komisi, akses antar-akun, peran admin, laporan terbuka, dan laporan yang dibuka kembali. Tes SQL belum dijalankan di database; pemeriksaan TypeScript, lint file terkait, dan build produksi lulus.
+- Memperbarui README, kebijakan pembayaran draft, dan `DEMO_CHECKLIST.md`. Uji langsung lintas akun serta keputusan biaya/pencairan produksi masih menunggu tim.
