@@ -8,12 +8,12 @@
 4. Status pembayaran berubah dari notifikasi Midtrans yang diverifikasi, bukan dari URL kembali atau input browser.
 5. Serah terima baru dapat dikonfirmasi setelah pembayaran sandbox tercatat sebagai Dibayar. Pengembalian dan sengketa tetap mengikuti alur sewa yang sudah ada. Jangan aktifkan pembayaran produksi sebelum aturan refund dan pencairan disepakati.
 
-## Keputusan produk yang masih draft
+## Tarif yang ditetapkan dan keputusan yang masih draft
 
 - Harga sewa: `harga per hari × durasi`, dihitung dan divalidasi di database. Pembayaran sandbox tidak menambah biaya lain.
-- Biaya platform untuk pemilik: BMC menyebut standar **10–15%** dan premium sekitar **5%**. Untuk demo sandbox, ledger simulasi memakai **10% standar** dari total sewa; sisanya **90%** adalah bagian pemilik. Ini bukan tarif final, bukan biaya tambahan bagi penyewa, dan belum memotong atau memindahkan uang sungguhan.
+- Biaya platform final untuk pemilik: **10% Standar** atau **5% Premium** dari total sewa. Tarif pemilik dikunci saat pesanan disetujui. Biaya ini bukan tambahan tagihan penyewa; pembagian hasil masih ledger simulasi dan belum memindahkan uang sungguhan.
 - Simulasi bagian pemilik hanya dibuat setelah sewa berstatus `Selesai` dan pembayaran sandbox berstatus `Dibayar` dengan nominal cocok. Pengelola dapat menandainya `Tercatat simulasi` hanya jika tidak ada laporan terbuka. Refund atau laporan baru mengubah catatan menjadi `Perlu peninjauan`. Penandaan ini tidak mengirim dana ke rekening pemilik.
-- Langganan premium dan boost listing: manfaat, harga, masa berlaku, dan mekanisme pengembalian belum ditetapkan. Belum ada pembelian kedua produk ini.
+- SERU Premium: **Rp20.000 untuk satu bulan**, dibayar lewat Midtrans Sandbox dan aktif hanya setelah status pembayaran terverifikasi. Perpanjangan dilakukan manual; tidak ada penagihan otomatis. Refund Premium menghentikan masa aktif dari pembayaran terakhir, sedangkan pesanan yang telanjur disetujui tetap memakai tarif yang telah dikunci. Mekanisme refund produksi masih perlu keputusan. Boost listing belum diterapkan.
 - Pembagian hasil developer adalah kesepakatan internal tim, terpisah dari biaya platform dan tidak masuk perhitungan checkout.
 - Aturan uji sandbox sementara: permintaan yang belum disetujui dapat dibatalkan penyewa langsung. Setelah disetujui tetapi sebelum satu pun pihak mengonfirmasi serah terima, penyewa mengajukan alasan pembatalan dan pengelola meninjau. Selama ditinjau, pembayaran baru dan serah terima ditunda.
 - Pemilik dapat menolak permintaan yang belum disetujui. Setelah disetujui dan sebelum serah terima, pemilik dapat membatalkan langsung jika belum ada order pembayaran. Jika order pembayaran sudah dibuat, pemilik mengajukan alasan pembatalan; pengelola memeriksa order/refund sandbox sebelum transaksi dinyatakan batal. Penyewa menerima notifikasi.
@@ -30,5 +30,6 @@
 4. Atur Notification URL Midtrans sandbox ke `https://<domain-seru>/api/payments/notification`. Set `NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED=true` hanya pada lingkungan pengujian. URL akhir pembayaran ditentukan oleh aplikasi saat transaksi dibuat.
 5. Jalankan pula migrasi `20261008_payment_handoff_and_admin_summary.sql`, `20261009_sandbox_cancellations.sql`, dan `20261009_owner_cancellations.sql` sesuai urutan. Uji dengan akun penyewa, pemilik, dan admin: pembatalan oleh pemilik sebelum order pembayaran dibuat, pembatalan order pending, kartu sandbox yang sudah dibayar, penolakan pembatalan, dan percobaan serah terima selama pengajuan aktif. Uji juga notifikasi palsu, nominal berbeda, dan pengiriman webhook berulang.
 6. Jalankan `20261009_sandbox_payouts.sql` setelah migrasi di atas. Selesaikan satu sewa sandbox sampai kedua pihak mengonfirmasi pengembalian, lalu lihat simulasi bagian pemilik di `/lend/requests` dan panel admin. Coba laporan terbuka sebelum menandai simulasi untuk memastikan pencatatan tertahan.
+7. Jalankan `20261009_zz_premium_membership.sql` setelah migrasi payout. Di `/premium`, coba pembayaran Rp20.000 lewat simulator Midtrans Sandbox. Notification URL tetap `/api/payments/notification`; pembayaran sewa dan Premium memakai endpoint yang sama. Setelah status `Dibayar`, setujui pesanan barang milik akun Premium dan periksa komisi 5%. Tanpa Premium aktif, komisi 10%.
 
 Integrasi ini belum menerima uang sungguhan. Kunci Midtrans produksi tidak digunakan oleh kode.

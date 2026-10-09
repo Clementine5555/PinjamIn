@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeftRight, ChevronRight, PackagePlus, UserRound } from 'lucide-react';
+import { ArrowLeftRight, ChevronRight, Crown, PackagePlus, UserRound } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import UserAvatar from '@/components/UserAvatar';
 
@@ -32,6 +32,7 @@ export default function Profile() {
     <Link href="/transactions" className="flex items-center gap-3 rounded-2xl bg-white p-5"><ArrowLeftRight className="text-primary" /><span className="flex-1 font-semibold">Pesanan saya</span><ChevronRight size={18} /></Link>
     {permanent && <>
       <h2 className="mt-6 mb-2 text-sm font-semibold text-muted-foreground">Sebagai pemilik</h2>
+      <Link href="/premium" className="mb-3 flex items-center gap-3 rounded-2xl bg-white p-5"><Crown className="text-primary" /><span className="flex-1 font-semibold">SERU Premium</span><ChevronRight size={18} /></Link>
       <Link href="/lend/items" className="flex items-center gap-3 rounded-2xl bg-white p-5"><PackagePlus className="text-primary" /><span className="flex-1 font-semibold">Barang saya</span><ChevronRight size={18} /></Link>
       <Link href="/lend/requests" className="mt-3 flex items-center gap-3 rounded-2xl bg-white p-5"><ArrowLeftRight className="text-primary" /><span className="flex-1 font-semibold">Permintaan masuk</span><ChevronRight size={18} /></Link>
     </>}

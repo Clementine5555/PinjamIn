@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
-select plan(67);
+select plan(75);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-owner@example.invalid'),
@@ -122,7 +122,7 @@ select ok(not (select is_rented from public.items where title = 'SERU audit item
 select is((select count(*)::integer from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
   1, 'completed paid rental creates one payout simulation');
 select is((select platform_fee from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
-  1800, 'draft 10 percent platform fee is calculated');
+  1800, 'standard 10 percent platform fee is calculated');
 select is((select owner_amount from public.rental_payouts where rental_id = (select first_id from pg_temp.audit_ids)),
   16200, 'owner share matches rent less platform fee');
 select throws_ok($$select public.mark_sandbox_payout((select first_id from pg_temp.audit_ids))$$,
@@ -217,6 +217,70 @@ select is((select requested_by from public.rental_cancellations where rental_id 
   'owner', 'paid cancellation identifies the owner as requester');
 select throws_ok($$select public.confirm_rental_stage((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'handoff')$$,
   'P0001', null, 'owner cannot hand off during paid cancellation review');
+
+select throws_ok($$insert into public.premium_payments (user_id, order_id, amount)
+  values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-forged-premium', 20000)$$,
+  '42501', null, 'owner cannot create premium payment directly');
+
+reset role;
+insert into public.premium_payments (user_id, order_id, amount, status)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-premium', 20000, 'Menunggu');
+update public.premium_payments set status = 'Dibayar', paid_at = now()
+where order_id = 'seru-audit-premium';
+create temp table premium_audit_until as
+select active_until from public.premium_memberships
+where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+select ok((select active_until > now() and active_until <= now() + interval '1 month 1 minute'
+  from public.premium_memberships where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  'verified premium payment activates one month');
+update public.premium_payments set status = 'Dibayar' where order_id = 'seru-audit-premium';
+select is((select active_until from public.premium_memberships where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  (select active_until from pg_temp.premium_audit_until), 'duplicate paid status does not add another month');
+
+set local role authenticated;
+set local request.jwt.claim.sub = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+set local request.jwt.claims = '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated","is_anonymous":false}';
+select is((select count(*)::integer from public.premium_payments), 0, 'other user cannot see premium payment');
+
+reset role;
+insert into public.items (title, description, price_per_day, image_url, category, location, owner_id)
+values ('SERU audit premium item', '', 18000, 'https://example.invalid/premium.jpg', 'Elektronik', 'USU Medan', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+set local role authenticated;
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+insert into public.rentals (item_id, renter_id, start_date, end_date, days, total_price)
+select id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', current_date + 40, current_date + 41, 1, 18000
+from public.items where title = 'SERU audit premium item';
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select public.review_rental((select min(id) from public.rentals where item_id =
+  (select id from public.items where title = 'SERU audit premium item')), 'Disetujui');
+select is((select platform_fee_bps from public.rentals where item_id =
+  (select id from public.items where title = 'SERU audit premium item') order by id limit 1),
+  500, 'premium owner gets 5 percent when rental is approved');
+
+reset role;
+update public.premium_memberships set active_until = now()
+where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local role authenticated;
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+insert into public.rentals (item_id, renter_id, start_date, end_date, days, total_price)
+select id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', current_date + 42, current_date + 43, 1, 18000
+from public.items where title = 'SERU audit premium item';
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select public.review_rental((select max(id) from public.rentals where item_id =
+  (select id from public.items where title = 'SERU audit premium item')), 'Disetujui');
+select is((select platform_fee_bps from public.rentals where item_id =
+  (select id from public.items where title = 'SERU audit premium item') order by id desc limit 1),
+  1000, 'expired premium returns new approvals to standard 10 percent');
+select is((select platform_fee_bps from public.rentals where item_id =
+  (select id from public.items where title = 'SERU audit premium item') order by id limit 1),
+  500, 'earlier premium approval keeps its fee snapshot');
+reset role;
+select is((select count(*)::integer from public.premium_memberships
+  where user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 1, 'membership remains auditable after expiry');
 
 select * from finish();
 rollback;

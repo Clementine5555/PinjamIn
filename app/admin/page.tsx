@@ -10,7 +10,9 @@ type Review = { id: number; rental_id: number; item_id: number; rating: number; 
 type Report = { id: number; rental_id: number; reporter_id: string; reason: string; details: string; status: string; created_at: string };
 type PaymentSummary = { paid_count: number; paid_amount: number; pending_count: number };
 type CancellationRequest = { rental_id: number; reason: string; status: string; requested_by: string; resolution_note: string | null; created_at: string };
-type Payout = { rental_id: number; gross_amount: number; platform_fee: number; owner_amount: number; status: string };
+type Payout = { rental_id: number; gross_amount: number; fee_bps: number; platform_fee: number; owner_amount: number; status: string };
+type PremiumPayment = { id: number; user_id: string; amount: number; status: string; created_at: string };
+type PremiumMembership = { user_id: string; active_until: string };
 
 export default function AdminPage() {
   const { user, loading, error } = useAuth();
@@ -26,6 +28,8 @@ function AdminWorkspace() {
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [cancellations, setCancellations] = useState<CancellationRequest[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [premiumPayments, setPremiumPayments] = useState<PremiumPayment[]>([]);
+  const [premiumMemberships, setPremiumMemberships] = useState<Record<string, PremiumMembership>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -33,16 +37,18 @@ function AdminWorkspace() {
   useEffect(() => {
     let active = true;
     async function load() {
-      const [reviewResult, reportResult, paymentResult, cancellationResult, payoutResult] = await Promise.all([
+      const [reviewResult, reportResult, paymentResult, cancellationResult, payoutResult, premiumResult, membershipResult] = await Promise.all([
         supabase.from('rental_reviews').select('id,rental_id,item_id,rating,comment,moderation_status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.from('rental_reports').select('id,rental_id,reporter_id,reason,details,status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.rpc('admin_payment_summary').single(),
         supabase.from('rental_cancellations').select('rental_id,reason,status,requested_by,resolution_note,created_at').order('created_at', { ascending: false }).limit(100),
-        supabase.from('rental_payouts').select('rental_id,gross_amount,platform_fee,owner_amount,status').order('created_at', { ascending: false }).limit(100),
+        supabase.from('rental_payouts').select('rental_id,gross_amount,fee_bps,platform_fee,owner_amount,status').order('created_at', { ascending: false }).limit(100),
+        supabase.from('premium_payments').select('id,user_id,amount,status,created_at').order('created_at', { ascending: false }).limit(100),
+        supabase.from('premium_memberships').select('user_id,active_until').limit(100),
       ]);
       if (!active) return;
-      if (reviewResult.error || reportResult.error || paymentResult.error || cancellationResult.error || payoutResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
-      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); setCancellations(cancellationResult.data ?? []); setPayouts(payoutResult.data ?? []); }
+      if (reviewResult.error || reportResult.error || paymentResult.error || cancellationResult.error || payoutResult.error || premiumResult.error || membershipResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
+      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); setCancellations(cancellationResult.data ?? []); setPayouts(payoutResult.data ?? []); setPremiumPayments(premiumResult.data ?? []); setPremiumMemberships(Object.fromEntries((membershipResult.data ?? []).map(entry => [entry.user_id, entry]))); }
       setLoading(false);
     }
     void load();
@@ -117,12 +123,21 @@ function AdminWorkspace() {
       </section>}
       <section className="rounded-2xl bg-white p-5 sm:p-7">
         <h2 className="text-lg font-bold">Simulasi pembagian hasil</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Draft demo: 10% untuk platform, 90% untuk pemilik, tanpa menghitung biaya gateway atau pajak. Tombol di bawah hanya mencatat simulasi, bukan mentransfer dana.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Tarif standar 10% dan Premium 5% dikunci saat pesanan disetujui. Nominal belum memperhitungkan biaya gateway atau pajak. Tombol ini hanya mencatat simulasi, bukan mentransfer dana.</p>
         {payouts.length ? <div className="mt-4 space-y-4">{payouts.map(payout => <article key={payout.rental_id} className="border-t border-primary/10 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Transaksi #{payout.rental_id}</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{payout.status}</span></div>
-          <p className="mt-2 text-sm text-muted-foreground">Sewa {formatRupiah(payout.gross_amount)} · Komisi simulasi {formatRupiah(payout.platform_fee)} · Bagian pemilik {formatRupiah(payout.owner_amount)}</p>
+          <p className="mt-2 text-sm text-muted-foreground">Sewa {formatRupiah(payout.gross_amount)} · Komisi simulasi {payout.fee_bps / 100}% ({formatRupiah(payout.platform_fee)}) · Bagian pemilik {formatRupiah(payout.owner_amount)}</p>
           {payout.status !== 'Tercatat simulasi' && <button type="button" disabled={busy !== null} onClick={() => void markPayout(payout.rental_id)} className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === `payout-${payout.rental_id}` ? 'Memproses...' : 'Catat pencairan simulasi'}</button>}
         </article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada sewa selesai yang dibayar di sandbox.</p>}
+      </section>
+      <section className="rounded-2xl bg-white p-5 sm:p-7">
+        <h2 className="text-lg font-bold">Keanggotaan Premium</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Rp20.000 per bulan, dibayar manual lewat Midtrans Sandbox. Premium aktif setelah pembayaran terverifikasi.</p>
+        {premiumPayments.length ? <div className="mt-4 space-y-4">{premiumPayments.map(entry => <article key={entry.id} className="border-t border-primary/10 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Pembayaran #{entry.id}</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{entry.status}</span></div>
+          <p className="mt-1 break-all text-xs text-muted-foreground">Akun {entry.user_id} · {formatRupiah(entry.amount)} · {new Date(entry.created_at).toLocaleDateString('id-ID')}</p>
+          {premiumMemberships[entry.user_id] && <p className="mt-2 text-sm text-muted-foreground">Premium {new Date(premiumMemberships[entry.user_id].active_until).getTime() > Date.now() ? 'aktif' : 'tidak aktif'} · Hingga {new Date(premiumMemberships[entry.user_id].active_until).toLocaleString('id-ID')}</p>}
+        </article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada pembayaran Premium.</p>}
       </section>
       <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Pembatalan & refund sandbox</h2><p className="mt-2 text-sm text-muted-foreground">Hanya sebelum serah terima. Refund otomatis bergantung pada metode dan status Midtrans.</p>
         {cancellations.length ? <div className="mt-4 space-y-4">{cancellations.map(entry => <article key={entry.rental_id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Transaksi #{entry.rental_id} · {entry.requested_by === 'owner' ? 'Pemilik' : 'Penyewa'}</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{entry.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm">{entry.reason}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleDateString('id-ID')}{entry.resolution_note ? ` · ${entry.resolution_note}` : ''}</p><div className="mt-3 flex flex-wrap gap-2">{['Menunggu', 'Perlu manual'].includes(entry.status) && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'approve')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy === `cancel-${entry.rental_id}` ? 'Memproses...' : 'Setujui & proses'}</button>}{entry.status === 'Menunggu' && entry.requested_by !== 'owner' && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'reject')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button>}{entry.status === 'Diproses' && <button type="button" disabled={busy !== null} onClick={() => void reviewCancellation(entry.rental_id, 'check')} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">Periksa status refund</button>}</div></article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada pengajuan pembatalan.</p>}

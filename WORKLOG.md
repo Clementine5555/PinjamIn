@@ -40,3 +40,10 @@
 - Refund atau laporan baru menandai catatan untuk peninjauan. Migrasi `supabase/migrations/20261009_sandbox_payouts.sql` harus dijalankan sebelum tampilan baru dipakai.
 - Memperluas tes SQL untuk komisi, akses antar-akun, peran admin, laporan terbuka, dan laporan yang dibuka kembali. Tes SQL belum dijalankan di database; pemeriksaan TypeScript, lint file terkait, dan build produksi lulus.
 - Memperbarui README, kebijakan pembayaran draft, dan `DEMO_CHECKLIST.md`. Uji langsung lintas akun serta keputusan biaya/pencairan produksi masih menunggu tim.
+
+## 9 Oktober 2026 - Tarif final dan SERU Premium sandbox
+
+- Menetapkan tarif komisi pemilik 10% Standar atau 5% Premium, dikunci saat pesanan disetujui; ledger pembagian hasil tetap simulasi.
+- Menambahkan SERU Premium Rp20.000 per bulan melalui Midtrans Sandbox. Status aktif hanya setelah pembayaran diverifikasi lewat webhook atau pemeriksaan status gateway, dan perpanjangan dilakukan manual tanpa auto-debit.
+- Menambahkan halaman `/premium`, status keanggotaan, ringkasan pembayaran di panel admin, serta notifikasi aktivasi/refund.
+- Migrasi `supabase/migrations/20261009_zz_premium_membership.sql` perlu dijalankan setelah migrasi payout. Pengujian langsung di web dan pembayaran sandbox dilakukan pemilik repositori.

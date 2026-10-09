@@ -12,9 +12,9 @@ Untuk web yang sudah dideploy di Vercel, tidak perlu menjalankan server lokal. P
 
 ## Database dan pembayaran
 
-- Jalankan migrasi SQL di `supabase/migrations` sesuai urutan nama file. Yang terbaru untuk simulasi pembagian hasil adalah `20261009_sandbox_payouts.sql`.
+- Jalankan migrasi SQL di `supabase/migrations` sesuai urutan nama file. Yang terbaru untuk Premium adalah `20261009_zz_premium_membership.sql`, setelah `20261009_sandbox_payouts.sql`.
 - Langkah konfigurasi akun admin dan Midtrans sandbox ada di `PAYMENT_POLICY_DRAFT.md`.
-- Komisi 10% dan bagian pemilik 90% saat ini hanya **angka draft simulasi** untuk demo. Premium, boost listing, biaya gateway, pajak, dan pencairan sungguhan belum diterapkan.
+- Tarif final komisi pemilik adalah 10% Standar atau 5% Premium, dikunci saat pesanan disetujui. Premium Rp20.000/bulan dibayar dan diperpanjang manual lewat Midtrans Sandbox. Pembagian hasil, pembayaran Premium, dan statusnya masih untuk uji sandbox; boost listing, biaya gateway/pajak, dan pencairan sungguhan belum diterapkan.
 
 ## Pemeriksaan dan demo
 

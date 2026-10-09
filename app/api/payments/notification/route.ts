@@ -28,10 +28,15 @@ export async function POST(request: Request) {
   const actual = notice.signature_key.toLowerCase();
   if (actual.length !== expected.length || !timingSafeEqual(Buffer.from(actual), Buffer.from(expected))) return new Response(null, { status: 401 });
 
-  const { data: payment, error: lookupError } = await config.admin.from('rental_payments')
+  const { data: rentalPayment, error: lookupError } = await config.admin.from('rental_payments')
     .select('id,amount,status').eq('order_id', notice.order_id).maybeSingle();
   if (lookupError) return new Response(null, { status: 500 });
+  const { data: premiumPayment, error: premiumError } = rentalPayment ? { data: null, error: null } :
+    await config.admin.from('premium_payments').select('id,amount,status').eq('order_id', notice.order_id).maybeSingle();
+  if (premiumError) return new Response(null, { status: 500 });
+  const payment = rentalPayment ?? premiumPayment;
   if (!payment) return new Response(null, { status: 404 });
+  const table = rentalPayment ? 'rental_payments' : 'premium_payments';
   const amount = Number(notice.gross_amount);
   if (!Number.isSafeInteger(amount) || amount !== payment.amount) return new Response(null, { status: 400 });
 
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
     if (nextStatus !== 'Dibayar' && nextStatus !== 'Dikembalikan') return new Response(null, { status: 200 });
   }
 
-  const { error: updateError } = await config.admin.from('rental_payments').update({
+  const { error: updateError } = await config.admin.from(table).update({
     status: nextStatus,
     paid_at: nextStatus === 'Dibayar' ? new Date().toISOString() : undefined,
     updated_at: new Date().toISOString(),
