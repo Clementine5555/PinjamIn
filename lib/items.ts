@@ -9,6 +9,7 @@ export type Item = {
   location: string;
   is_available: boolean;
   is_rented: boolean;
+  boosted_until?: string | null;
 };
 
 export function itemAvailable(item: Item) {

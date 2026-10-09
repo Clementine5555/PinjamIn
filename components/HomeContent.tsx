@@ -18,7 +18,8 @@ export default function HomeContent({ items, error, search = false }: { items: I
     (category === 'Semua' || item.category === category) &&
     (location === 'Semua lokasi' || item.location === location) &&
     item.title.toLowerCase().includes(query.trim().toLowerCase())
-  ).sort((a, b) => sort === 'price' ? a.price_per_day - b.price_per_day : a.id - b.id);
+  ).sort((a, b) => sort === 'price' ? a.price_per_day - b.price_per_day :
+    Number(!!b.boosted_until) - Number(!!a.boosted_until) || a.id - b.id);
 
   return (
     <div className="page-container">

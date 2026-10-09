@@ -16,6 +16,8 @@ type Payout = { rental_id: number; gross_amount: number; fee_bps: number; platfo
 export default function LendWorkspace({ section }: { section: 'new' | 'items' | 'requests' }) {
   const { user, loading: authLoading, error: authError } = useAuth();
   const [items, setItems] = useState<OwnedItem[]>([]);
+  const [boosts, setBoosts] = useState<Record<number, string>>({});
+  const [premiumActive, setPremiumActive] = useState(false);
   const [rentals, setRentals] = useState<IncomingRental[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
   const [cancellations, setCancellations] = useState<Record<number, Cancellation>>({});
@@ -46,6 +48,17 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         if (itemError) throw itemError;
         const ownItems = (owned ?? []) as OwnedItem[];
         if (active) setItems(ownItems);
+        if (section === 'items') {
+          const [boostResult, membershipResult] = await Promise.all([
+            supabase.from('item_boosts').select('item_id,boosted_until').in('item_id', ownItems.length ? ownItems.map(item => item.id) : [-1]),
+            supabase.from('premium_memberships').select('active_until').eq('user_id', userId).maybeSingle(),
+          ]);
+          if (boostResult.error || membershipResult.error) throw boostResult.error ?? membershipResult.error;
+          if (active) {
+            setBoosts(Object.fromEntries((boostResult.data ?? []).filter(entry => new Date(entry.boosted_until).getTime() > Date.now()).map(entry => [entry.item_id, entry.boosted_until])));
+            setPremiumActive(!!membershipResult.data && new Date(membershipResult.data.active_until).getTime() > Date.now());
+          }
+        }
         if (section === 'requests' && ownItems.length) {
           const { data: requests, error: rentalError } = await supabase.from('rentals')
             .select('id,item_id,status,start_date,end_date,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
@@ -195,6 +208,15 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
     }
   }
 
+  async function boostItem(item: OwnedItem) {
+    if (updatingId !== null) return;
+    setUpdatingId(item.id); setItemError(''); setItemMessage('');
+    const { data, error: boostError } = await supabase.rpc('boost_my_item', { p_item_id: item.id });
+    if (boostError) setItemError('Boost gagal diaktifkan. Pastikan Premium aktif dan barang tersedia.');
+    else { setBoosts(current => ({ ...current, [item.id]: data as string })); setItemMessage('Boost listing aktif selama 7 hari.'); }
+    setUpdatingId(null);
+  }
+
   async function reviewRental(rentalId: number, status: 'Disetujui' | 'Ditolak') {
     if (reviewing !== null) return;
     setReviewing(rentalId); setError('');
@@ -284,7 +306,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       {message && <p role="status" className="text-sm text-primary">{message}</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     </form>}
-    {section === 'items' && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Barang saya</h2>{loading ? <p className="mt-3 text-sm">Memuat...</p> : items.length ? <div className="mt-4 space-y-4">{items.map(item => <div key={item.id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><Link href={`/items/${item.id}`} className="font-semibold text-primary">{item.title}</Link><p className="mt-1 text-sm text-muted-foreground">{formatRupiah(item.price_per_day)} /hari · {item.is_rented ? 'Sedang disewa' : item.is_available ? 'Aktif' : 'Nonaktif'}{item.is_rented && !item.is_available ? ' · Listing nonaktif' : ''}</p></div><div className="flex gap-2"><button type="button" disabled={updatingId !== null} onClick={() => { setEditingId(editingId === item.id ? null : item.id); setItemError(''); }} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{editingId === item.id ? 'Tutup' : 'Edit'}</button><button type="button" disabled={updatingId !== null} onClick={() => void toggleItem(item)} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{updatingId === item.id ? 'Menyimpan...' : item.is_available ? 'Nonaktifkan' : 'Aktifkan'}</button></div></div>{editingId === item.id && <OwnerItemEditor item={item} saving={updatingId === item.id} onSave={(event, current) => void saveItem(event, current)} onCancel={() => setEditingId(null)} />}</div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada barang milikmu di katalog. <Link href="/lend/new" className="font-semibold text-primary">Tambah barang →</Link></p>}{itemMessage && <p role="status" className="mt-4 text-sm text-primary">{itemMessage}</p>}{itemError && <p role="alert" className="mt-4 text-sm text-red-700">{itemError}</p>}</section>}
+    {section === 'items' && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Barang saya</h2>{loading ? <p className="mt-3 text-sm">Memuat...</p> : items.length ? <div className="mt-4 space-y-4">{items.map(item => <div key={item.id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><Link href={`/items/${item.id}`} className="font-semibold text-primary">{item.title}</Link><p className="mt-1 text-sm text-muted-foreground">{formatRupiah(item.price_per_day)} /hari · {item.is_rented ? 'Sedang disewa' : item.is_available ? 'Aktif' : 'Nonaktif'}{item.is_rented && !item.is_available ? ' · Listing nonaktif' : ''}</p>{boosts[item.id] && <p className="mt-1 text-xs font-semibold text-primary">Boost aktif hingga {new Date(boosts[item.id]).toLocaleDateString('id-ID')}</p>}</div><div className="flex flex-wrap gap-2"><button type="button" disabled={updatingId !== null} onClick={() => { setEditingId(editingId === item.id ? null : item.id); setItemError(''); }} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{editingId === item.id ? 'Tutup' : 'Edit'}</button><button type="button" disabled={updatingId !== null} onClick={() => void toggleItem(item)} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{updatingId === item.id ? 'Menyimpan...' : item.is_available ? 'Nonaktifkan' : 'Aktifkan'}</button>{premiumActive && item.is_available && !boosts[item.id] && <button type="button" disabled={updatingId !== null} onClick={() => void boostItem(item)} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Boost 7 hari</button>}</div></div>{editingId === item.id && <OwnerItemEditor item={item} saving={updatingId === item.id} onSave={(event, current) => void saveItem(event, current)} onCancel={() => setEditingId(null)} />}</div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada barang milikmu di katalog. <Link href="/lend/new" className="font-semibold text-primary">Tambah barang →</Link></p>}{itemMessage && <p role="status" className="mt-4 text-sm text-primary">{itemMessage}</p>}{itemError && <p role="alert" className="mt-4 text-sm text-red-700">{itemError}</p>}</section>}
     {section === 'requests' && <section className="rounded-2xl bg-white p-5 sm:p-7">
       <h2 className="text-lg font-bold">Permintaan masuk</h2>
       {loading ? <p className="mt-3 text-sm">Memuat...</p> : rentals.length ? <div className="mt-4 space-y-4">{rentals.map(rental => <div key={rental.id} className="border-t border-primary/10 pt-4">
@@ -293,6 +315,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {rental.status === 'Menunggu persetujuan' && <><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></>}
           <Link href={`/chat/${rental.id}`} className="text-sm font-semibold text-primary">Buka chat →</Link>
+          <Link href={`/transactions/${rental.id}/condition`} className="text-sm font-semibold text-primary">Bukti kondisi →</Link>
           <Link href={`/transactions/${rental.id}/feedback`} className="text-sm font-semibold text-primary">Laporkan masalah →</Link>
         </div>
         <RentalStageControl rental={rental} role="owner" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirming !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />

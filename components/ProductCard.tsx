@@ -9,6 +9,7 @@ export default function ProductCard({ item }: { item: Item }) {
       <div className="relative aspect-[4/3] overflow-hidden bg-primary/5">
         <ProductImage src={item.image_url} alt={item.title} />
         <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-1 text-[10px] font-bold text-primary sm:left-3 sm:top-3 sm:text-xs">{itemAvailable(item) ? 'Tersedia' : 'Tidak tersedia'}</span>
+        {item.boosted_until && <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-[10px] font-bold text-white sm:right-3 sm:top-3 sm:text-xs">Pilihan Premium</span>}
       </div>
       <div className="flex flex-1 flex-col p-3 sm:p-4">
         <p className="mb-1 text-[10px] font-medium text-muted-foreground sm:text-xs">{item.category}</p>

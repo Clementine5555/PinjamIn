@@ -12,7 +12,8 @@ type PaymentSummary = { paid_count: number; paid_amount: number; pending_count: 
 type CancellationRequest = { rental_id: number; reason: string; status: string; requested_by: string; resolution_note: string | null; created_at: string };
 type Payout = { rental_id: number; gross_amount: number; fee_bps: number; platform_fee: number; owner_amount: number; status: string };
 type PremiumPayment = { id: number; user_id: string; amount: number; status: string; created_at: string };
-type PremiumMembership = { user_id: string; active_until: string };
+type PremiumMembership = { user_id: string; active_until: string; active: boolean };
+type StudentVerification = { user_id: string; student_number: string; university: string; ktm_path: string; ktp_path: string; status: string; reviewer_note: string | null; created_at: string };
 
 export default function AdminPage() {
   const { user, loading, error } = useAuth();
@@ -30,6 +31,8 @@ function AdminWorkspace() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [premiumPayments, setPremiumPayments] = useState<PremiumPayment[]>([]);
   const [premiumMemberships, setPremiumMemberships] = useState<Record<string, PremiumMembership>>({});
+  const [verifications, setVerifications] = useState<StudentVerification[]>([]);
+  const [verificationNote, setVerificationNote] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -37,7 +40,7 @@ function AdminWorkspace() {
   useEffect(() => {
     let active = true;
     async function load() {
-      const [reviewResult, reportResult, paymentResult, cancellationResult, payoutResult, premiumResult, membershipResult] = await Promise.all([
+      const [reviewResult, reportResult, paymentResult, cancellationResult, payoutResult, premiumResult, membershipResult, verificationResult] = await Promise.all([
         supabase.from('rental_reviews').select('id,rental_id,item_id,rating,comment,moderation_status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.from('rental_reports').select('id,rental_id,reporter_id,reason,details,status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.rpc('admin_payment_summary').single(),
@@ -45,10 +48,11 @@ function AdminWorkspace() {
         supabase.from('rental_payouts').select('rental_id,gross_amount,fee_bps,platform_fee,owner_amount,status').order('created_at', { ascending: false }).limit(100),
         supabase.from('premium_payments').select('id,user_id,amount,status,created_at').order('created_at', { ascending: false }).limit(100),
         supabase.from('premium_memberships').select('user_id,active_until').limit(100),
+        supabase.from('student_verifications').select('user_id,student_number,university,ktm_path,ktp_path,status,reviewer_note,created_at').order('created_at', { ascending: false }).limit(100),
       ]);
       if (!active) return;
-      if (reviewResult.error || reportResult.error || paymentResult.error || cancellationResult.error || payoutResult.error || premiumResult.error || membershipResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
-      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); setCancellations(cancellationResult.data ?? []); setPayouts(payoutResult.data ?? []); setPremiumPayments(premiumResult.data ?? []); setPremiumMemberships(Object.fromEntries((membershipResult.data ?? []).map(entry => [entry.user_id, entry]))); }
+      if (reviewResult.error || reportResult.error || paymentResult.error || cancellationResult.error || payoutResult.error || premiumResult.error || membershipResult.error || verificationResult.error) setError('Data panel gagal dimuat. Pastikan migrasi terbaru dan hak akses admin sudah aktif.');
+      else { setReviews(reviewResult.data ?? []); setReports(reportResult.data ?? []); setPaymentSummary(paymentResult.data as PaymentSummary); setCancellations(cancellationResult.data ?? []); setPayouts(payoutResult.data ?? []); setPremiumPayments(premiumResult.data ?? []); setPremiumMemberships(Object.fromEntries((membershipResult.data ?? []).map(entry => [entry.user_id, { ...entry, active: new Date(entry.active_until).getTime() > Date.now() }]))); setVerifications(verificationResult.data ?? []); }
       setLoading(false);
     }
     void load();
@@ -110,10 +114,29 @@ function AdminWorkspace() {
     setBusy(null);
   }
 
+  async function openDocument(path: string) {
+    setError('');
+    const { data, error: linkError } = await supabase.storage.from('student-verifications').createSignedUrl(path, 60);
+    if (linkError || !data?.signedUrl) setError('Dokumen gagal dibuka.');
+    else window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async function reviewVerification(entry: StudentVerification, status: 'Disetujui' | 'Ditolak') {
+    if (busy) return;
+    const note = (verificationNote[entry.user_id] ?? '').trim();
+    if (status === 'Ditolak' && note.length < 5) { setError('Tulis alasan penolakan minimal 5 karakter.'); return; }
+    setBusy(`verification-${entry.user_id}`); setError('');
+    const { error: reviewError } = await supabase.rpc('review_student_verification', { p_user_id: entry.user_id, p_status: status, p_note: note });
+    if (reviewError) setError('Verifikasi gagal diproses. Muat ulang lalu coba lagi.');
+    else setVerifications(current => current.map(row => row.user_id === entry.user_id ? { ...row, status, reviewer_note: note || null } : row));
+    setBusy(null);
+  }
+
   return <div className="page-container"><div className="mx-auto max-w-4xl space-y-7">
     <div><h1 className="text-2xl font-bold">Panel pengelola</h1><p className="mt-2 text-sm text-muted-foreground">Pantau pembayaran uji coba, ulasan, dan laporan transaksi.</p></div>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {loading ? <p role="status">Memuat data moderasi...</p> : <>
+      <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Verifikasi mahasiswa</h2><p className="mt-2 text-sm text-muted-foreground">Periksa KTM dan KTP secara privat. Jangan sebarkan dokumen pengguna.</p>{verifications.length ? <div className="mt-4 space-y-4">{verifications.map(entry => <article key={entry.user_id} className="border-t border-primary/10 pt-4"><p className="font-semibold">{entry.university} · {entry.student_number}</p><p className="mt-1 break-all text-xs text-muted-foreground">Akun {entry.user_id} · {entry.status}</p><div className="mt-2 flex gap-4 text-sm font-semibold text-primary"><button type="button" onClick={() => void openDocument(entry.ktm_path)}>Buka KTM</button><button type="button" onClick={() => void openDocument(entry.ktp_path)}>Buka KTP</button></div>{entry.status === 'Menunggu' && <><label className="mt-3 block text-xs font-semibold">Catatan untuk pemohon<input value={verificationNote[entry.user_id] ?? ''} onChange={event => setVerificationNote(current => ({ ...current, [entry.user_id]: event.target.value }))} maxLength={500} className="mt-2 w-full rounded-xl border border-primary/20 p-3 text-sm" /></label><div className="mt-3 flex gap-2"><button type="button" disabled={busy !== null} onClick={() => void reviewVerification(entry, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={busy !== null} onClick={() => void reviewVerification(entry, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></div></>}</article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada pengajuan.</p>}</section>
       {paymentSummary && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Ringkasan pembayaran sandbox</h2><p className="mt-2 text-sm text-muted-foreground">Angka di bawah adalah transaksi uji, bukan pendapatan atau dana yang sudah diterima SERU.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl bg-mint/20 p-4"><p className="text-sm text-muted-foreground">Total pembayaran berhasil</p><p className="mt-2 text-xl font-bold text-primary">{formatRupiah(paymentSummary.paid_amount)}</p></div>
@@ -136,7 +159,7 @@ function AdminWorkspace() {
         {premiumPayments.length ? <div className="mt-4 space-y-4">{premiumPayments.map(entry => <article key={entry.id} className="border-t border-primary/10 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Pembayaran #{entry.id}</p><span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{entry.status}</span></div>
           <p className="mt-1 break-all text-xs text-muted-foreground">Akun {entry.user_id} · {formatRupiah(entry.amount)} · {new Date(entry.created_at).toLocaleDateString('id-ID')}</p>
-          {premiumMemberships[entry.user_id] && <p className="mt-2 text-sm text-muted-foreground">Premium {new Date(premiumMemberships[entry.user_id].active_until).getTime() > Date.now() ? 'aktif' : 'tidak aktif'} · Hingga {new Date(premiumMemberships[entry.user_id].active_until).toLocaleString('id-ID')}</p>}
+          {premiumMemberships[entry.user_id] && <p className="mt-2 text-sm text-muted-foreground">Premium {premiumMemberships[entry.user_id].active ? 'aktif' : 'tidak aktif'} · Hingga {new Date(premiumMemberships[entry.user_id].active_until).toLocaleString('id-ID')}</p>}
         </article>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada pembayaran Premium.</p>}
       </section>
       <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Pembatalan & refund sandbox</h2><p className="mt-2 text-sm text-muted-foreground">Hanya sebelum serah terima. Refund otomatis bergantung pada metode dan status Midtrans.</p>

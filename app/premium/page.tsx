@@ -33,6 +33,7 @@ async function premiumRequest(path: string) {
 export default function PremiumPage() {
   const { user, loading: authLoading, error: authError } = useAuth();
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [checkedAt, setCheckedAt] = useState(0);
   const [payment, setPayment] = useState<PremiumPayment | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export default function PremiumPage() {
             if (active) setError(cause instanceof Error ? cause.message : 'Status pembayaran belum dapat diperiksa.');
           }
         }
-        if (active) { setMembership(data.membership); setPayment(data.payment); }
+        if (active) { setMembership(data.membership); setPayment(data.payment); setCheckedAt(Date.now()); }
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : 'Status Premium gagal dimuat.');
       } finally {
@@ -85,7 +86,7 @@ export default function PremiumPage() {
     try {
       if (payment && !['Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment.status)) await premiumRequest('/api/premium/status');
       const data = await loadPremium(userId);
-      setMembership(data.membership); setPayment(data.payment);
+      setMembership(data.membership); setPayment(data.payment); setCheckedAt(Date.now());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Status Premium gagal diperiksa.');
     } finally {
@@ -98,13 +99,14 @@ export default function PremiumPage() {
   if (!user || user.is_anonymous) return <div className="page-container"><h1 className="text-2xl font-bold">SERU Premium</h1><p className="mt-3 text-sm text-muted-foreground">Masuk dengan akun terdaftar untuk melihat Premium.</p><Link href="/login?next=%2Fpremium" className="mt-4 inline-block rounded-full bg-primary px-6 py-3 font-semibold text-white">Masuk</Link></div>;
   if (user.app_metadata.seru_role === 'admin') return <div className="page-container"><h1 className="text-2xl font-bold">SERU Premium</h1><p className="mt-3 text-sm text-muted-foreground">Akun pengelola tidak dapat membeli Premium.</p><Link href="/admin" className="mt-4 inline-block text-primary">Buka panel pengelola →</Link></div>;
 
-  const active = !!membership && new Date(membership.active_from).getTime() <= Date.now() && new Date(membership.active_until).getTime() > Date.now();
+  const active = !!membership && new Date(membership.active_from).getTime() <= checkedAt && new Date(membership.active_until).getTime() > checkedAt;
   return <div className="page-container"><div className="mx-auto max-w-2xl space-y-5">
     <Link href="/profile" className="text-sm font-semibold text-primary">← Kembali ke profil</Link>
     <section className="rounded-2xl bg-primary p-6 text-white sm:p-8">
       <p className="text-sm font-semibold text-mint">SERU Premium</p>
       <h1 className="mt-3 text-2xl font-bold">Komisi lebih ringan untuk pemilik barang</h1>
       <p className="mt-3 text-sm leading-relaxed text-white/85">Standar 10% · Premium 5%. Tarif dikunci saat pesanan disetujui, jadi perubahan keanggotaan tidak mengubah pesanan yang sudah berjalan.</p>
+      <p className="mt-2 text-sm leading-relaxed text-white/85">Premium juga memberi durasi sewa hingga 7 hari, antrean pengingat barang, boost listing milikmu selama 7 hari, dan etalase khusus pemilik. Standar maksimal 3 hari.</p>
     </section>
     <section className="rounded-2xl bg-white p-6 sm:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">Premium 1 bulan</h2><strong className="text-xl text-primary">Rp20.000</strong></div>
