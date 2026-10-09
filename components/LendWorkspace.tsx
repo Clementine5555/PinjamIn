@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
+import { format } from 'date-fns';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah, type Item } from '@/lib/items';
@@ -9,7 +10,7 @@ import RentalStageControl, { type RentalStage } from '@/components/RentalStageCo
 import OwnerItemEditor from '@/components/OwnerItemEditor';
 
 type OwnedItem = Item;
-type IncomingRental = RentalStage & { item_id: number; start_date: string; end_date: string };
+type IncomingRental = RentalStage & { item_id: number; start_date: string; end_date: string; total_price: number; late_days: number; late_fee_amount: number };
 type Cancellation = { status: string; requested_by: string; resolution_note: string | null };
 type Payout = { rental_id: number; gross_amount: number; fee_bps: number; platform_fee: number; owner_amount: number; status: string };
 
@@ -18,6 +19,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
   const [items, setItems] = useState<OwnedItem[]>([]);
   const [boosts, setBoosts] = useState<Record<number, string>>({});
   const [premiumActive, setPremiumActive] = useState(false);
+  const [verified, setVerified] = useState<boolean | null>(null);
   const [rentals, setRentals] = useState<IncomingRental[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
   const [cancellations, setCancellations] = useState<Record<number, Cancellation>>({});
@@ -36,6 +38,15 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const userId = user && !user.is_anonymous ? user.id : '';
+
+  useEffect(() => {
+    if (!userId || section !== 'new') return;
+    let active = true;
+    void supabase.rpc('is_verified_student', { p_user_id: userId }).then(({ data, error: verificationError }) => {
+      if (active) { setVerified(verificationError ? null : data === true); if (verificationError) setError('Status verifikasi gagal dimuat. Muat ulang halaman.'); }
+    });
+    return () => { active = false; };
+  }, [userId, section]);
 
   useEffect(() => {
     if (!userId || section === 'new') return;
@@ -61,7 +72,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         }
         if (section === 'requests' && ownItems.length) {
           const { data: requests, error: rentalError } = await supabase.from('rentals')
-            .select('id,item_id,status,start_date,end_date,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
+            .select('id,item_id,status,start_date,end_date,total_price,late_days,late_fee_amount,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
             .in('item_id', ownItems.map(item => item.id)).order('created_at', { ascending: false });
           if (rentalError) throw rentalError;
           if (requests?.length) {
@@ -96,7 +107,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         const notification = payload.new as { kind?: string; rental_id?: number };
         if (notification.kind !== 'return:renter' || !notification.rental_id) return;
         const { data } = await supabase.from('rentals')
-          .select('status,return_renter_confirmed_at,return_owner_confirmed_at')
+          .select('status,late_days,late_fee_amount,return_renter_confirmed_at,return_owner_confirmed_at')
           .eq('id', notification.rental_id).single();
         if (active && data) setRentals(current => current.map(rental => rental.id === notification.rental_id ? { ...rental, ...data } : rental));
       })
@@ -106,7 +117,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
 
   async function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!userId || saving) return;
+    if (!userId || saving || verified !== true) return;
     const form = event.currentTarget;
     const values = new FormData(form);
     const title = String(values.get('title') ?? '').trim();
@@ -123,6 +134,8 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
     }
     setSaving(true); setError(''); setMessage('');
     try {
+      const { data: studentVerified, error: verificationError } = await supabase.rpc('is_verified_student', { p_user_id: userId });
+      if (verificationError || !studentVerified) throw new Error('Verifikasi mahasiswa diperlukan sebelum menambah barang.');
       const extension = photo.type === 'image/png' ? 'png' : photo.type === 'image/webp' ? 'webp' : 'jpg';
       const path = `${userId}/${crypto.randomUUID()}.${extension}`;
       const { error: uploadError } = await supabase.storage.from('item-photos').upload(path, photo, { contentType: photo.type });
@@ -136,8 +149,8 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       setItems(current => [data as OwnedItem, ...current]);
       form.reset();
       setMessage('Barang berhasil ditambahkan ke katalog.');
-    } catch {
-      setError('Barang gagal ditambahkan. Periksa migrasi database dan coba lagi.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Barang gagal ditambahkan. Periksa migrasi database dan coba lagi.');
     } finally { setSaving(false); }
   }
 
@@ -266,7 +279,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       setError('Konfirmasi gagal. Muat ulang status transaksi lalu coba lagi.');
     } else {
       const { data, error: loadError } = await supabase.from('rentals')
-        .select('status,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
+        .select('status,late_days,late_fee_amount,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
         .eq('id', rentalId).single();
       if (loadError) setError('Konfirmasi tersimpan, tetapi status belum tampil. Muat ulang halaman.');
       else {
@@ -293,7 +306,10 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         <Link key={tab.key} href={tab.href} aria-current={section === tab.key ? 'page' : undefined} className={`rounded-xl px-2 py-3 ${section === tab.key ? 'bg-mint/50 text-primary' : 'text-muted-foreground hover:text-primary'}`}>{tab.label}</Link>
       )}
     </nav>
-    {section === 'new' && <form onSubmit={addItem} className="space-y-4 rounded-2xl border border-primary/10 bg-white p-5 sm:p-7">
+    {section === 'new' && verified === false && <div className="rounded-2xl bg-mint/30 p-5 text-sm text-primary">Barang baru bisa ditambahkan setelah verifikasi mahasiswa disetujui. <Link href="/verification" className="font-semibold underline">Ajukan verifikasi →</Link></div>}
+    {section === 'new' && verified === null && <p role="status" className="text-sm text-muted-foreground">Memeriksa verifikasi mahasiswa...</p>}
+    {section === 'new' && verified === null && error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {section === 'new' && verified === true && <form onSubmit={addItem} className="space-y-4 rounded-2xl border border-primary/10 bg-white p-5 sm:p-7">
       <h2 className="text-lg font-bold">Tambah barang</h2>
       <label className="block text-sm font-semibold">Nama barang<input name="title" required minLength={3} maxLength={100} disabled={saving} className="mt-2 w-full rounded-xl border border-primary/20 px-4 py-3" /></label>
       <label className="block text-sm font-semibold">Deskripsi<textarea name="description" maxLength={1000} rows={3} disabled={saving} className="mt-2 w-full rounded-xl border border-primary/20 px-4 py-3" /></label>
@@ -313,6 +329,8 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       {loading ? <p className="mt-3 text-sm">Memuat...</p> : rentals.length ? <div className="mt-4 space-y-4">{rentals.map(rental => <div key={rental.id} className="border-t border-primary/10 pt-4">
         <p className="font-semibold">{items.find(item => item.id === rental.item_id)?.title ?? 'Barang sewaan'}</p>
         <p className="mt-1 text-sm text-muted-foreground">{rental.start_date} – {rental.end_date} · {rental.status}</p>
+        {rental.status === 'Sedang disewa' && !rental.return_renter_confirmed_at && rental.end_date < format(new Date(), 'yyyy-MM-dd') && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tanggal pengembalian sudah lewat. Denda bertambah 15% dari tarif harian per hari terlambat. Hubungi penyewa melalui chat.</p>}
+        {rental.late_fee_amount > 0 && <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Denda keterlambatan: {formatRupiah(rental.late_fee_amount)} ({rental.late_days} hari × 15% tarif harian). Tercatat, belum dibayar. <Link href={`/transactions/${rental.id}/feedback`} className="font-semibold underline">Laporkan jika tidak sesuai</Link>.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {rental.status === 'Menunggu persetujuan' && <><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></>}
           <Link href={`/chat/${rental.id}`} className="text-sm font-semibold text-primary">Buka chat →</Link>

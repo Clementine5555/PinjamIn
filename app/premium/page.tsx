@@ -106,7 +106,7 @@ export default function PremiumPage() {
       <p className="text-sm font-semibold text-mint">SERU Premium</p>
       <h1 className="mt-3 text-2xl font-bold">Komisi lebih ringan untuk pemilik barang</h1>
       <p className="mt-3 text-sm leading-relaxed text-white/85">Standar 10% · Premium 5%. Tarif dikunci saat pesanan disetujui, jadi perubahan keanggotaan tidak mengubah pesanan yang sudah berjalan.</p>
-      <p className="mt-2 text-sm leading-relaxed text-white/85">Premium juga memberi durasi sewa hingga 7 hari, antrean pengingat barang, boost listing milikmu selama 7 hari, dan etalase khusus pemilik. Standar maksimal 3 hari.</p>
+      <p className="mt-2 text-sm leading-relaxed text-white/85">Premium juga memberi durasi sewa hingga 7 hari, prioritas dalam antrean barang, boost listing milikmu selama 7 hari, dan etalase khusus pemilik. Standar maksimal 3 hari.</p>
     </section>
     <section className="rounded-2xl bg-white p-6 sm:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">Premium 1 bulan</h2><strong className="text-xl text-primary">Rp20.000</strong></div>

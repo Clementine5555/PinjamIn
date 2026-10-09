@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 
 type Rental = { id: number; item_id: number; renter_id: string; status: string; items: { title: string; owner_id: string | null } | null };
 type Review = { rating: number; comment: string; moderation_status: string };
-type Report = { reason: string; details: string; status: string };
+type Report = { reason: string; details: string; status: string; resolution_outcome: string | null; resolution_note: string | null };
 const reasons = ['Barang rusak', 'Tidak sesuai deskripsi', 'Terlambat', 'Lainnya'] as const;
 
 export default function FeedbackPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +36,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       const current = { ...data, items: item } as Rental;
       setRental(current);
       const queries = [
-        supabase.from('rental_reports').select('reason,details,status').eq('rental_id', rentalId).eq('reporter_id', user!.id).maybeSingle(),
+        supabase.from('rental_reports').select('reason,details,status,resolution_outcome,resolution_note').eq('rental_id', rentalId).eq('reporter_id', user!.id).maybeSingle(),
         current.renter_id === user!.id
           ? supabase.from('rental_reviews').select('rating,comment,moderation_status').eq('rental_id', rentalId).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
@@ -77,7 +77,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     setSaving('report'); setActionError('');
     const { data, error: saveError } = await supabase.from('rental_reports').insert({
       rental_id: rental.id, reporter_id: user.id, reason, details,
-    }).select('reason,details,status').single();
+    }).select('reason,details,status,resolution_outcome,resolution_note').single();
     if (saveError) setActionError('Laporan gagal dikirim. Coba lagi.');
     else setReport(data);
     setSaving(null);
@@ -101,7 +101,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
         : <form onSubmit={submitReview} className="mt-4 space-y-4"><label className="block text-sm font-semibold">Rating<select value={rating} onChange={event => setRating(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-primary/20 bg-white px-4 py-3">{[5, 4, 3, 2, 1].map(value => <option key={value} value={value}>{value} bintang</option>)}</select></label><label className="block text-sm font-semibold">Komentar (opsional)<textarea name="comment" minLength={10} maxLength={500} rows={4} placeholder="Ceritakan pengalamanmu dengan barang ini" className="mt-2 w-full rounded-xl border border-primary/20 px-4 py-3" /></label><button disabled={saving !== null || !!error} className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving === 'review' ? 'Menyimpan...' : 'Kirim ulasan'}</button></form>}
     </section>}
     <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Laporkan masalah</h2><p className="mt-2 text-sm text-muted-foreground">Laporan terkait transaksi ini ditinjau pengelola SERU.</p>
-      {report ? <div className="mt-4 text-sm"><p className="font-semibold text-primary">{report.reason} · {report.status}</p><p className="mt-2 whitespace-pre-wrap">{report.details}</p></div>
+      {report ? <div className="mt-4 text-sm"><p className="font-semibold text-primary">{report.reason} · {report.status}</p><p className="mt-2 whitespace-pre-wrap">{report.details}</p>{report.resolution_note && <p className="mt-3 rounded-xl bg-mint/20 p-3"><span className="font-semibold">{report.resolution_outcome}: </span>{report.resolution_note}</p>}</div>
         : <form onSubmit={submitReport} className="mt-4 space-y-4"><label className="block text-sm font-semibold">Alasan<select name="reason" className="mt-2 w-full rounded-xl border border-primary/20 bg-white px-4 py-3">{reasons.map(reason => <option key={reason}>{reason}</option>)}</select></label><label className="block text-sm font-semibold">Kronologi<textarea name="details" required minLength={20} maxLength={1000} rows={5} placeholder="Jelaskan masalah dan kapan terjadi" className="mt-2 w-full rounded-xl border border-primary/20 px-4 py-3" /></label><button disabled={saving !== null || !!error} className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving === 'report' ? 'Mengirim...' : 'Kirim laporan'}</button></form>}
     </section>
   </div></div>;

@@ -22,6 +22,8 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
   const [bookedRanges, setBookedRanges] = useState<{ start_date: string; end_date: string }[]>([]);
   const [scheduleReady, setScheduleReady] = useState(false);
   const [maxDays, setMaxDays] = useState(3);
+  const [verified, setVerified] = useState<boolean | null>(null);
+  const [queueReserved, setQueueReserved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const submitting = useRef(false);
@@ -53,15 +55,22 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
   useEffect(() => {
     if (!currentUser || currentUser.is_anonymous) return;
     let active = true;
-    void supabase.from('premium_memberships').select('active_until').eq('user_id', currentUser.id).maybeSingle().then(({ data }) => {
+    void Promise.all([
+      supabase.from('premium_memberships').select('active_until').eq('user_id', currentUser.id).maybeSingle(),
+      supabase.rpc('is_verified_student', { p_user_id: currentUser.id }),
+      supabase.rpc('item_waitlist_state', { p_item_id: Number(id) }),
+    ]).then(([membership, verification, queue]) => {
       if (active) {
-        const limit = data && new Date(data.active_until).getTime() > Date.now() ? 7 : 3;
+        const limit = membership.data && new Date(membership.data.active_until).getTime() > Date.now() ? 7 : 3;
         setMaxDays(limit);
         setDays(current => Math.min(current, limit));
+        setVerified(verification.error ? null : verification.data === true);
+        const state = queue.data as { reserved?: boolean } | null;
+        setQueueReserved(queue.error ? false : state?.reserved === true);
       }
     });
     return () => { active = false; };
-  }, [currentUser]);
+  }, [currentUser, id]);
 
   const endDate = startDate ? format(addDays(new Date(`${startDate}T12:00:00`), days), 'yyyy-MM-dd') : '';
   const overlaps = !!startDate && bookedRanges.some(range => startDate <= range.end_date && endDate >= range.start_date);
@@ -83,6 +92,9 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
         return;
       }
       if (user.app_metadata.seru_role === 'admin') throw new Error('Akun pengelola tidak dapat menyewa barang.');
+      const { data: studentVerified, error: verifyError } = await supabase.rpc('is_verified_student', { p_user_id: user.id });
+      if (verifyError) throw new Error('Status verifikasi belum bisa diperiksa. Coba lagi.');
+      if (!studentVerified) throw new Error('Verifikasi mahasiswa harus disetujui sebelum kamu menyewa barang.');
       const { data: current, error: itemError } = await supabase.from('items').select('*').eq('id', item.id).single();
       if (itemError) throw new Error('Harga dan ketersediaan belum bisa diperiksa. Coba lagi.');
       if (current.owner_id === user.id) throw new Error('Kamu tidak bisa menyewa barang milikmu sendiri.');
@@ -90,6 +102,12 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
       if (current.price_per_day !== item.price_per_day) {
         setItem(current);
         throw new Error('Harga barang berubah. Periksa total baru lalu konfirmasi ulang.');
+      }
+      const { data: queueState, error: queueError } = await supabase.rpc('item_waitlist_state', { p_item_id: item.id });
+      if (queueError) throw new Error('Status antrean belum bisa diperiksa. Coba lagi.');
+      if ((queueState as { reserved?: boolean } | null)?.reserved) {
+        setQueueReserved(true);
+        throw new Error('Barang ini sedang diprioritaskan untuk pengguna dalam antrean.');
       }
       const { error } = await supabase.from('rentals').insert({
         item_id: item.id,
@@ -114,6 +132,8 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
       <Link href={`/items/${id}`} className="mb-6 inline-flex items-center gap-2 text-sm text-primary"><ArrowLeft size={18} />Kembali ke barang</Link>
       <h1 className="mb-6 text-2xl font-bold">Checkout</h1>
       {currentUser?.app_metadata.seru_role === 'admin' && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">Akun pengelola tidak dapat menyewa barang.</p>}
+      {currentUser && !currentUser.is_anonymous && verified === false && <p role="alert" className="mb-4 rounded-xl bg-mint/30 p-3 text-sm text-primary">Sewa tersedia setelah verifikasi mahasiswa disetujui. <Link href="/verification" className="font-semibold underline">Ajukan verifikasi →</Link></p>}
+      {queueReserved && <p role="alert" className="mb-4 rounded-xl bg-mint/30 p-3 text-sm text-primary">Barang ini sedang mendapat prioritas antrean.</p>}
       {loading ? <p role="status">Memuat barang...</p> : <div className="rounded-2xl border border-primary/10 bg-white p-6 sm:p-8">
         {item && <form onSubmit={handleRent}>
           <p className="text-xs text-muted-foreground">{item.category} · {item.location}</p>
@@ -129,9 +149,8 @@ export default function Checkout({ params }: { params: Promise<{ id: string }> }
           <AvailabilityCalendar selected={startDate} today={today} ranges={bookedRanges} onSelect={setStartDate} />
           {overlaps && <p role="alert" className="mt-3 text-sm text-red-700">Tanggal ini bentrok dengan pesanan yang sudah disetujui. Pilih tanggal lain.</p>}
           <div className="my-6 flex items-center justify-between gap-4 border-y border-primary/10 py-5"><p className="text-sm">Total sewa</p><p className="text-xl font-bold text-primary">{formatRupiah(item.price_per_day * days)}</p></div>
-          <p className="-mt-3 mb-5 text-xs leading-relaxed text-muted-foreground">Harga barang × {days} hari. Biaya platform 10% (pemilik Premium 5%) dipotong dari bagian pemilik saat transaksi selesai, bukan ditambahkan ke total penyewa. Tidak ada deposit.</p>
           <p className="mb-5 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><ShieldCheck size={18} className="shrink-0 text-primary" />Ini permintaan sewa, bukan pembayaran. Tunggu persetujuan sebelum serah terima barang.</p>
-          <button disabled={saving || authLoading || !scheduleReady || overlaps || !startDate || currentUser?.app_metadata.seru_role === 'admin' || currentUser?.id === item.owner_id || !itemAvailable(item)} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : currentUser?.app_metadata.seru_role === 'admin' ? 'Akun pengelola tidak bisa menyewa' : currentUser?.id === item.owner_id ? 'Tidak bisa menyewa barang sendiri' : itemAvailable(item) ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
+          <button disabled={saving || authLoading || !scheduleReady || overlaps || !startDate || currentUser?.app_metadata.seru_role === 'admin' || currentUser?.id === item.owner_id || (currentUser && !currentUser.is_anonymous && verified !== true) || queueReserved || !itemAvailable(item)} className="w-full rounded-full bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-50">{saving ? 'Menyimpan permintaan...' : currentUser?.app_metadata.seru_role === 'admin' ? 'Akun pengelola tidak bisa menyewa' : currentUser?.id === item.owner_id ? 'Tidak bisa menyewa barang sendiri' : verified === false ? 'Verifikasi mahasiswa dahulu' : queueReserved ? 'Prioritas antrean aktif' : itemAvailable(item) ? 'Konfirmasi Sewa' : 'Barang tidak tersedia'}</button>
         </form>}
         {errorMsg && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{errorMsg}</p>}
       </div>}

@@ -16,6 +16,8 @@ type Rental = RentalStage & {
   end_date: string;
   days: number;
   total_price: number;
+  late_days: number;
+  late_fee_amount: number;
   items: { title: string; owner_id: string | null } | null;
 };
 type Cancellation = { reason: string; status: string; requested_by: string; resolution_note: string | null };
@@ -48,7 +50,7 @@ function RentalList() {
         if (authError) throw authError;
         if (!auth.session) return;
         const { data, error } = await supabase.from('rentals')
-          .select('id,item_id,status,start_date,end_date,days,total_price,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at,items(title,owner_id)')
+          .select('id,item_id,status,start_date,end_date,days,total_price,late_days,late_fee_amount,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at,items(title,owner_id)')
           .eq('renter_id', auth.session.user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -113,7 +115,7 @@ function RentalList() {
       setActionError('Konfirmasi gagal. Muat ulang status transaksi lalu coba lagi.');
     } else {
       const { data, error: loadError } = await supabase.from('rentals')
-        .select('status,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
+        .select('status,late_days,late_fee_amount,handoff_renter_confirmed_at,handoff_owner_confirmed_at,return_renter_confirmed_at,return_owner_confirmed_at')
         .eq('id', rentalId).single();
       if (loadError) setActionError('Konfirmasi tersimpan, tetapi status belum tampil. Muat ulang halaman.');
       else setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, ...data } : rental));
@@ -130,6 +132,8 @@ function RentalList() {
         <span className="rounded-full bg-mint/40 px-3 py-1 text-xs font-semibold text-primary">{rental.status}</span>
         <h2 className="mt-4 font-bold">{rental.items?.title ?? 'Barang sewaan'}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{format(new Date(rental.start_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })} – {format(new Date(rental.end_date + 'T00:00:00'), 'd MMM yyyy', { locale: id })}</p>
+        {rental.status === 'Sedang disewa' && !rental.return_renter_confirmed_at && rental.end_date < format(new Date(), 'yyyy-MM-dd') && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tanggal pengembalian sudah lewat. Denda bertambah 15% dari tarif harian untuk setiap hari terlambat. Hubungi pemilik melalui chat.</p>}
+        {rental.late_fee_amount > 0 && <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Denda keterlambatan: {formatRupiah(rental.late_fee_amount)} ({rental.late_days} hari × 15% tarif harian). Tercatat, belum dibayar. <Link href={`/transactions/${rental.id}/feedback`} className="font-semibold underline">Laporkan jika tidak sesuai</Link>.</p>}
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-primary/10 pt-4"><p className="text-sm text-muted-foreground">{rental.days} hari</p><p className="font-bold text-primary">{formatRupiah(rental.total_price)}</p></div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-primary"><Link href={`/items/${rental.item_id}`}>Lihat barang →</Link>{rental.items?.owner_id && <Link href={`/chat/${rental.id}`}>Chat pemilik →</Link>}<Link href={`/transactions/${rental.id}/condition`}>Bukti kondisi →</Link><Link href={`/transactions/${rental.id}/feedback`}>{rental.status === 'Selesai' ? 'Ulasan & bantuan →' : 'Laporkan masalah →'}</Link>{process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED === 'true' && rental.status === 'Disetujui' && !['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellations[rental.id]?.status ?? '') && <Link href={`/transactions/${rental.id}/payment`}>Pembayaran uji coba →</Link>}</div>
         <RentalStageControl rental={rental} role="renter" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
