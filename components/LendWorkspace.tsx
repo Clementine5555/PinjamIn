@@ -10,13 +10,17 @@ import OwnerItemEditor from '@/components/OwnerItemEditor';
 
 type OwnedItem = Item;
 type IncomingRental = RentalStage & { item_id: number; start_date: string; end_date: string };
+type Cancellation = { status: string; requested_by: string; resolution_note: string | null };
 
 export default function LendWorkspace({ section }: { section: 'new' | 'items' | 'requests' }) {
   const { user, loading: authLoading, error: authError } = useAuth();
   const [items, setItems] = useState<OwnedItem[]>([]);
   const [rentals, setRentals] = useState<IncomingRental[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<number, string>>({});
-  const [cancellationStatuses, setCancellationStatuses] = useState<Record<number, string>>({});
+  const [cancellations, setCancellations] = useState<Record<number, Cancellation>>({});
+  const [cancellationOpenId, setCancellationOpenId] = useState<number | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewing, setReviewing] = useState<number | null>(null);
@@ -49,14 +53,14 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
             const rentalIds = requests.map(rental => rental.id);
             const [paymentResult, cancellationResult] = await Promise.all([
               supabase.from('rental_payments').select('rental_id,status').in('rental_id', rentalIds),
-              supabase.from('rental_cancellations').select('rental_id,status').in('rental_id', rentalIds),
+              supabase.from('rental_cancellations').select('rental_id,status,requested_by,resolution_note').in('rental_id', rentalIds),
             ]);
             if (paymentResult.error || cancellationResult.error) throw paymentResult.error ?? cancellationResult.error;
             if (active) setPaymentStatuses(Object.fromEntries((paymentResult.data ?? []).map(payment => [payment.rental_id, payment.status])));
-            if (active) setCancellationStatuses(Object.fromEntries((cancellationResult.data ?? []).map(cancellation => [cancellation.rental_id, cancellation.status])));
+            if (active) setCancellations(Object.fromEntries((cancellationResult.data ?? []).map(cancellation => [cancellation.rental_id, cancellation])));
           }
           if (active) setRentals((requests ?? []) as IncomingRental[]);
-        } else if (active) { setRentals([]); setPaymentStatuses({}); setCancellationStatuses({}); }
+        } else if (active) { setRentals([]); setPaymentStatuses({}); setCancellations({}); }
       } catch {
         if (active) setError('Data pemilik gagal dimuat. Pastikan migrasi database chat sudah dijalankan.');
       } finally {
@@ -200,6 +204,33 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
     setReviewing(null);
   }
 
+  async function cancelOwnerRental(rentalId: number) {
+    if (cancellingId !== null) return;
+    const reason = cancellationReason.trim();
+    if (reason.length < 5 || reason.length > 500) {
+      setError('Alasan pembatalan harus 5 sampai 500 karakter.'); return;
+    }
+    setCancellingId(rentalId); setError(''); setMessage('');
+    const { data, error: cancelError } = await supabase.rpc('cancel_owner_rental', {
+      p_rental_id: rentalId, p_reason: reason,
+    });
+    if (cancelError) {
+      setError(cancelError.message.includes('Pengajuan pembatalan sudah ada')
+        ? 'Pembatalan sudah diajukan. Muat ulang halaman untuk melihat statusnya.'
+        : 'Pembatalan gagal. Muat ulang status transaksi lalu coba lagi.');
+    } else {
+      if (data === 'Dibatalkan') {
+        setRentals(current => current.map(rental => rental.id === rentalId ? { ...rental, status: 'Dibatalkan' } : rental));
+        setMessage('Pesanan dibatalkan. Penyewa sudah diberi notifikasi.');
+      } else {
+        setCancellations(current => ({ ...current, [rentalId]: { status: 'Menunggu', requested_by: 'owner', resolution_note: null } }));
+        setMessage('Pembatalan diajukan. Pengelola akan memeriksa status pembayaran.');
+      }
+      setCancellationOpenId(null); setCancellationReason('');
+    }
+    setCancellingId(null);
+  }
+
   async function confirmStage(rentalId: number, stage: 'handoff' | 'return') {
     if (confirming !== null) return;
     setConfirming(rentalId); setError('');
@@ -243,6 +274,25 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     </form>}
     {section === 'items' && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Barang saya</h2>{loading ? <p className="mt-3 text-sm">Memuat...</p> : items.length ? <div className="mt-4 space-y-4">{items.map(item => <div key={item.id} className="border-t border-primary/10 pt-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><Link href={`/items/${item.id}`} className="font-semibold text-primary">{item.title}</Link><p className="mt-1 text-sm text-muted-foreground">{formatRupiah(item.price_per_day)} /hari · {item.is_rented ? 'Sedang disewa' : item.is_available ? 'Aktif' : 'Nonaktif'}{item.is_rented && !item.is_available ? ' · Listing nonaktif' : ''}</p></div><div className="flex gap-2"><button type="button" disabled={updatingId !== null} onClick={() => { setEditingId(editingId === item.id ? null : item.id); setItemError(''); }} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{editingId === item.id ? 'Tutup' : 'Edit'}</button><button type="button" disabled={updatingId !== null} onClick={() => void toggleItem(item)} className="rounded-full border border-primary/20 px-4 py-2 text-xs font-semibold text-primary disabled:opacity-50">{updatingId === item.id ? 'Menyimpan...' : item.is_available ? 'Nonaktifkan' : 'Aktifkan'}</button></div></div>{editingId === item.id && <OwnerItemEditor item={item} saving={updatingId === item.id} onSave={(event, current) => void saveItem(event, current)} onCancel={() => setEditingId(null)} />}</div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada barang milikmu di katalog. <Link href="/lend/new" className="font-semibold text-primary">Tambah barang →</Link></p>}{itemMessage && <p role="status" className="mt-4 text-sm text-primary">{itemMessage}</p>}{itemError && <p role="alert" className="mt-4 text-sm text-red-700">{itemError}</p>}</section>}
-    {section === 'requests' && <section className="rounded-2xl bg-white p-5 sm:p-7"><h2 className="text-lg font-bold">Permintaan masuk</h2>{loading ? <p className="mt-3 text-sm">Memuat...</p> : rentals.length ? <div className="mt-4 space-y-4">{rentals.map(rental => <div key={rental.id} className="border-t border-primary/10 pt-4"><p className="font-semibold">{items.find(item => item.id === rental.item_id)?.title ?? 'Barang sewaan'}</p><p className="mt-1 text-sm text-muted-foreground">{rental.start_date} – {rental.end_date} · {rental.status}</p><div className="mt-3 flex flex-wrap items-center gap-3">{rental.status === 'Menunggu persetujuan' && <><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></>}<Link href={`/chat/${rental.id}`} className="text-sm font-semibold text-primary">Buka chat →</Link><Link href={`/transactions/${rental.id}/feedback`} className="text-sm font-semibold text-primary">Laporkan masalah →</Link></div><RentalStageControl rental={rental} role="owner" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellationStatuses[rental.id]} busy={confirming !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} /></div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada permintaan sewa.</p>}{error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}</section>}
+    {section === 'requests' && <section className="rounded-2xl bg-white p-5 sm:p-7">
+      <h2 className="text-lg font-bold">Permintaan masuk</h2>
+      {loading ? <p className="mt-3 text-sm">Memuat...</p> : rentals.length ? <div className="mt-4 space-y-4">{rentals.map(rental => <div key={rental.id} className="border-t border-primary/10 pt-4">
+        <p className="font-semibold">{items.find(item => item.id === rental.item_id)?.title ?? 'Barang sewaan'}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{rental.start_date} – {rental.end_date} · {rental.status}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {rental.status === 'Menunggu persetujuan' && <><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Disetujui')} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Setujui</button><button type="button" disabled={reviewing !== null} onClick={() => void reviewRental(rental.id, 'Ditolak')} className="rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Tolak</button></>}
+          <Link href={`/chat/${rental.id}`} className="text-sm font-semibold text-primary">Buka chat →</Link>
+          <Link href={`/transactions/${rental.id}/feedback`} className="text-sm font-semibold text-primary">Laporkan masalah →</Link>
+        </div>
+        <RentalStageControl rental={rental} role="owner" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirming !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
+        {rental.status === 'Disetujui' && !rental.handoff_renter_confirmed_at && !rental.handoff_owner_confirmed_at && (cancellations[rental.id]
+          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan {cancellations[rental.id].requested_by === 'owner' ? 'oleh pemilik' : 'oleh penyewa'}: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
+          : cancellationOpenId === rental.id
+            ? <form onSubmit={event => { event.preventDefault(); void cancelOwnerRental(rental.id); }} className="mt-4 space-y-3 rounded-xl border border-primary/10 p-4"><label className="block text-sm font-semibold">Alasan pembatalan<textarea required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="mt-2 w-full rounded-xl border border-primary/20 p-3" rows={3} /></label><p className="text-xs text-muted-foreground">Sebelum pembayaran, pesanan langsung dibatalkan. Jika pembayaran sudah dibuat, pengelola akan meninjau status dan refund sandbox.</p><div className="flex gap-3"><button type="submit" disabled={cancellingId !== null} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{cancellingId === rental.id ? 'Memproses...' : 'Batalkan pesanan'}</button><button type="button" onClick={() => setCancellationOpenId(null)} className="text-sm text-muted-foreground">Tutup</button></div></form>
+            : <button type="button" onClick={() => { setCancellationOpenId(rental.id); setCancellationReason(''); }} className="mt-4 text-sm font-semibold text-red-700">Batalkan pesanan →</button>)}
+      </div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada permintaan sewa.</p>}
+      {message && <p role="status" className="mt-3 text-sm text-primary">{message}</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+    </section>}
   </div></div>;
 }

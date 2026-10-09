@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const { data: cancellation, error: cancellationError } = await config.admin.from('rental_cancellations')
-    .select('rental_id,renter_id,status').eq('rental_id', rentalId).maybeSingle();
+    .select('rental_id,renter_id,requested_by,status').eq('rental_id', rentalId).maybeSingle();
   if (cancellationError) return Response.json({ error: 'Pengajuan gagal dimuat.' }, { status: 500 });
   if (!cancellation) return Response.json({ error: 'Pengajuan tidak ditemukan.' }, { status: 404 });
   if (cancellation.status === 'Selesai' || cancellation.status === 'Ditolak') {
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
 
   if (action === 'reject') {
     if (cancellation.status !== 'Menunggu') return Response.json({ error: 'Pengajuan sudah diproses.' }, { status: 409 });
+    if (cancellation.requested_by === 'owner') return Response.json({ error: 'Pembatalan pemilik harus diselesaikan setelah status pembayaran diperiksa.' }, { status: 409 });
     const { data, error } = await config.admin.from('rental_cancellations').update({
       status: 'Ditolak', resolution_note: 'Pembatalan ditolak pengelola.', resolved_at: new Date().toISOString(),
     }).eq('rental_id', rentalId).eq('status', 'Menunggu').select('status,resolution_note').maybeSingle();

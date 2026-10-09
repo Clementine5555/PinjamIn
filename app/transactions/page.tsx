@@ -18,7 +18,7 @@ type Rental = RentalStage & {
   total_price: number;
   items: { title: string; owner_id: string | null } | null;
 };
-type Cancellation = { reason: string; status: string; resolution_note: string | null };
+type Cancellation = { reason: string; status: string; requested_by: string; resolution_note: string | null };
 
 export default function Transactions() {
   const { user, loading, error } = useAuth();
@@ -56,7 +56,7 @@ function RentalList() {
           const rentalIds = data.map(row => row.id);
           const [paymentResult, cancellationResult] = await Promise.all([
             supabase.from('rental_payments').select('rental_id,status').in('rental_id', rentalIds),
-            supabase.from('rental_cancellations').select('rental_id,reason,status,resolution_note').in('rental_id', rentalIds),
+            supabase.from('rental_cancellations').select('rental_id,reason,status,requested_by,resolution_note').in('rental_id', rentalIds),
           ]);
           if (paymentResult.error || cancellationResult.error) throw paymentResult.error ?? cancellationResult.error;
           const payments = paymentResult.data;
@@ -98,7 +98,7 @@ function RentalList() {
     const { error } = await supabase.rpc('request_rental_cancellation', { p_rental_id: rentalId, p_reason: reason });
     if (error) setActionError('Pengajuan gagal dikirim. Pastikan transaksi belum memasuki serah terima dan coba lagi.');
     else {
-      setCancellations(current => ({ ...current, [rentalId]: { reason, status: 'Menunggu', resolution_note: null } }));
+      setCancellations(current => ({ ...current, [rentalId]: { reason, status: 'Menunggu', requested_by: 'renter', resolution_note: null } }));
       setCancellationOpenId(null); setCancellationReason('');
     }
     setRequestingId(null);
@@ -135,7 +135,7 @@ function RentalList() {
         <RentalStageControl rental={rental} role="renter" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirmingId !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
         {rental.status === 'Menunggu persetujuan' && <button type="button" disabled={cancelingId !== null} onClick={() => void cancelRental(rental.id)} className="mt-4 rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">{cancelingId === rental.id ? 'Membatalkan...' : 'Batalkan permintaan'}</button>}
         {rental.status === 'Disetujui' && !rental.handoff_renter_confirmed_at && !rental.handoff_owner_confirmed_at && (cancellations[rental.id]
-          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
+          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan {cancellations[rental.id].requested_by === 'owner' ? 'oleh pemilik' : 'oleh penyewa'}: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].reason}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
           : cancellationOpenId === rental.id
             ? <form onSubmit={event => { event.preventDefault(); void requestCancellation(rental.id); }} className="mt-4 space-y-3 rounded-xl border border-primary/10 p-4"><label className="block text-sm font-semibold">Alasan pembatalan<textarea required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="mt-2 w-full rounded-xl border border-primary/20 p-3" rows={3} /></label><p className="text-xs text-muted-foreground">Sebelum serah terima. Pembayaran yang sudah berhasil perlu ditinjau untuk refund sandbox.</p><div className="flex gap-3"><button type="submit" disabled={requestingId !== null} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{requestingId === rental.id ? 'Mengirim...' : 'Kirim pengajuan'}</button><button type="button" onClick={() => setCancellationOpenId(null)} className="text-sm text-muted-foreground">Tutup</button></div></form>
             : <button type="button" onClick={() => { setCancellationOpenId(rental.id); setCancellationReason(''); }} className="mt-4 text-sm font-semibold text-red-700">Ajukan pembatalan →</button>)}

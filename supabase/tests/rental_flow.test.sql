@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
-select plan(44);
+select plan(54);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'seru-audit-owner@example.invalid'),
@@ -134,6 +134,50 @@ select is((select status from public.rental_cancellations where rental_id = (sel
   'Menunggu', 'cancellation waits for admin review');
 select throws_ok($$select public.confirm_rental_stage((select second_id from pg_temp.audit_ids), 'handoff')$$,
   'P0001', null, 'handoff is blocked while cancellation is pending');
+
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select throws_ok($$select public.cancel_owner_rental((select second_id from pg_temp.audit_ids), 'Barang diperlukan')$$,
+  'P0001', null, 'owner cannot duplicate an existing cancellation request');
+
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+select lives_ok($$insert into public.rentals (item_id, renter_id, start_date, end_date, days, total_price)
+  select id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', current_date + 20, current_date + 21, 1, 18000
+  from public.items where title = 'SERU audit item'$$, 'renter creates a new unpaid rental');
+
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select lives_ok($$select public.review_rental((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'Disetujui')$$,
+  'owner approves unpaid rental');
+select is((select public.cancel_owner_rental((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'Barang diperlukan untuk tugas')),
+  'Dibatalkan', 'owner directly cancels before a payment order exists');
+select is((select status from public.rentals where id = (select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item'))),
+  'Dibatalkan', 'unpaid rental is cancelled');
+
+set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated","is_anonymous":false}';
+select lives_ok($$insert into public.rentals (item_id, renter_id, start_date, end_date, days, total_price)
+  select id, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', current_date + 22, current_date + 23, 1, 18000
+  from public.items where title = 'SERU audit item'$$, 'renter creates another rental');
+
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select lives_ok($$select public.review_rental((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'Disetujui')$$,
+  'owner approves rental before payment');
+reset role;
+insert into public.rental_payments (rental_id, order_id, amount, status, paid_at)
+select max(id), 'seru-audit-owner-cancel', 18000, 'Dibayar', now() from public.rentals
+where item_id = (select id from public.items where title = 'SERU audit item');
+set local role authenticated;
+set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","is_anonymous":false}';
+select is((select public.cancel_owner_rental((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'Barang diperlukan untuk tugas')),
+  'Menunggu', 'owner cancellation after payment awaits admin');
+select is((select requested_by from public.rental_cancellations where rental_id = (select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item'))),
+  'owner', 'paid cancellation identifies the owner as requester');
+select throws_ok($$select public.confirm_rental_stage((select max(id) from public.rentals where item_id = (select id from public.items where title = 'SERU audit item')), 'handoff')$$,
+  'P0001', null, 'owner cannot hand off during paid cancellation review');
 
 select * from finish();
 rollback;
