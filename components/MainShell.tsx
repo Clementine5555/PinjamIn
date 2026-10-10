@@ -68,6 +68,8 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
                 <Link href="/" className="transition-colors hover:text-mint">Beranda</Link>
                 <Link href="/search" className="transition-colors hover:text-mint">Katalog barang</Link>
                 {isAdmin ? <Link href="/admin" className="transition-colors hover:text-mint">Panel pengelola</Link> : <Link href="/transactions" className="transition-colors hover:text-mint">Pesanan saya</Link>}
+                <Link href="/terms" className="transition-colors hover:text-mint">Syarat dan ketentuan</Link>
+                <Link href="/refund-policy" className="transition-colors hover:text-mint">Pengembalian dana &amp; barang</Link>
               </div>
             </div>
             <div>
