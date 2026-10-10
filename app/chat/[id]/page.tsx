@@ -62,7 +62,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         if (messagesError) throw messagesError;
         if (active) setMessages(current => mergeMessages(current, (history ?? []) as Message[]));
       } catch {
-        if (active) setError('Chat gagal dimuat. Pastikan migrasi database chat sudah dijalankan.');
+        if (active) setError('Chat gagal dimuat. Coba muat ulang halaman.');
       } finally { if (active) setLoading(false); }
     }
     void load();

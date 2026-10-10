@@ -35,7 +35,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       .then(({ data, error }) => {
         if (!active) return;
         setLoadedUserId(userId);
-        if (error) setError('Notifikasi belum bisa dimuat. Pastikan migrasi database sudah dijalankan.');
+        if (error) setError('Notifikasi belum bisa dimuat. Coba muat ulang halaman.');
         else { setError(''); setNotifications((data ?? []) as AppNotification[]); }
       });
     const channel = supabase.channel(`notifications:${userId}`)

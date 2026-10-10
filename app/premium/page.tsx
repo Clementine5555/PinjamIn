@@ -14,7 +14,7 @@ async function loadPremium(userId: string) {
     supabase.from('premium_payments').select('id,amount,status,created_at,redirect_url')
       .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (membershipResult.error || paymentResult.error) throw new Error('Status Premium gagal dimuat. Pastikan migrasi database sudah dijalankan.');
+  if (membershipResult.error || paymentResult.error) throw new Error('Status Premium gagal dimuat. Coba muat ulang halaman.');
   return { membership: membershipResult.data as Membership | null, payment: paymentResult.data as PremiumPayment | null };
 }
 
@@ -115,12 +115,12 @@ export default function PremiumPage() {
         {active && membership && <p className="mt-2 text-sm text-muted-foreground">Aktif sampai {new Date(membership.active_until).toLocaleString('id-ID')}.</p>}
         {payment && <p className="mt-2 text-sm text-muted-foreground">Pembayaran terakhir: {payment.status} · {new Date(payment.created_at).toLocaleDateString('id-ID')}</p>}
         {process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED === 'true' ? <>
-          <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Memproses...' : payment?.status === 'Menunggu' ? 'Lanjutkan pembayaran sandbox' : active ? 'Perpanjang 1 bulan di sandbox' : 'Bayar Rp20.000 di sandbox'}</button>
+          <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Memproses...' : payment?.status === 'Menunggu' ? 'Lanjutkan pembayaran' : active ? 'Perpanjang 1 bulan' : 'Bayar Rp20.000'}</button>
           <button type="button" disabled={busy} onClick={() => void refreshStatus()} className="mt-3 w-full rounded-full border border-primary/20 px-5 py-3 text-sm font-semibold text-primary disabled:opacity-50">Periksa status pembayaran</button>
-        </> : <p className="mt-4 text-sm text-muted-foreground">Pembayaran sandbox belum diaktifkan.</p>}
+        </> : <p className="mt-4 text-sm text-muted-foreground">Pembayaran saat ini tidak tersedia.</p>}
         {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
       </>}
     </section>
-    <p className="text-xs leading-relaxed text-muted-foreground">Pembayaran ini hanya simulasi Midtrans Sandbox, bukan tagihan uang sungguhan. Keanggotaan bertambah satu bulan setelah pembayaran terverifikasi. Perpanjangan dilakukan manual, tanpa penagihan otomatis. Tarif 5% hanya memengaruhi pembagian hasil simulasi sewa yang disetujui selama Premium aktif.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Keanggotaan bertambah satu bulan setelah pembayaran terverifikasi. Perpanjangan dilakukan manual, tanpa penagihan otomatis. Tarif 5% berlaku untuk pembagian hasil sewa yang disetujui selama Premium aktif.</p>
   </div></div>;
 }

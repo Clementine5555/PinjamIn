@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   const config = paymentConfig();
-  if (!config) return Response.json({ error: 'Pembayaran sandbox belum dikonfigurasi.' }, { status: 503 });
+  if (!config) return Response.json({ error: 'Pembayaran saat ini tidak tersedia.' }, { status: 503 });
   const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) return Response.json({ error: 'Masuk terlebih dahulu.' }, { status: 401 });
   const { data: identity, error: authError } = await config.auth.auth.getUser(token);
@@ -74,6 +74,6 @@ export async function POST(request: Request) {
     if (saveError) throw saveError;
     return Response.json({ redirect_url: redirect.toString() });
   } catch {
-    return Response.json({ error: 'Gateway sandbox belum dapat membuat pembayaran. Coba lagi nanti.' }, { status: 502 });
+    return Response.json({ error: 'Pembayaran belum dapat dibuat. Coba lagi nanti.' }, { status: 502 });
   }
 }

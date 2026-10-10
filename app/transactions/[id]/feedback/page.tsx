@@ -43,7 +43,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       ] as const;
       const [reportResult, reviewResult] = await Promise.all(queries);
       if (!active) return;
-      if (reportResult.error || reviewResult.error) setError('Ulasan atau laporan gagal dimuat. Pastikan migrasi database sudah dijalankan.');
+      if (reportResult.error || reviewResult.error) setError('Ulasan atau laporan gagal dimuat. Coba muat ulang halaman.');
       else { setReport(reportResult.data); setReview(reviewResult.data); }
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah, type Item } from '@/lib/items';
+import { cancellationNoteForDisplay } from '@/lib/display-text';
 import RentalStageControl, { type RentalStage } from '@/components/RentalStageControl';
 import OwnerItemEditor from '@/components/OwnerItemEditor';
 
@@ -90,7 +91,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
           if (active) setRentals((requests ?? []) as IncomingRental[]);
         } else if (active) { setRentals([]); setPaymentStatuses({}); setCancellations({}); setPayouts({}); }
       } catch {
-        if (active) setError('Data pemilik gagal dimuat. Pastikan migrasi database chat sudah dijalankan.');
+        if (active) setError('Data pemilik gagal dimuat. Coba muat ulang halaman.');
       } finally {
         if (active) setLoading(false);
       }
@@ -150,7 +151,7 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
       form.reset();
       setMessage('Barang berhasil ditambahkan ke katalog.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Barang gagal ditambahkan. Periksa migrasi database dan coba lagi.');
+      setError(cause instanceof Error ? cause.message : 'Barang gagal ditambahkan. Coba lagi.');
     } finally { setSaving(false); }
   }
 
@@ -339,14 +340,13 @@ export default function LendWorkspace({ section }: { section: 'new' | 'items' | 
         </div>
         <RentalStageControl rental={rental} role="owner" paymentStatus={paymentStatuses[rental.id] ?? null} cancellationStatus={cancellations[rental.id]?.status} busy={confirming !== null} onConfirm={(rentalId, stage) => void confirmStage(rentalId, stage)} />
         {payouts[rental.id] && <div className="mt-4 rounded-xl bg-mint/20 p-4 text-sm">
-          <p className="font-semibold text-primary">Bagian pemilik (simulasi): {formatRupiah(payouts[rental.id].owner_amount)}</p>
-          <p className="mt-1 text-muted-foreground">Harga sewa {formatRupiah(payouts[rental.id].gross_amount)} · Komisi platform {payouts[rental.id].fee_bps / 100}% ({formatRupiah(payouts[rental.id].platform_fee)}) · {payouts[rental.id].status}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Belum ada transfer dana nyata.</p>
+          <p className="font-semibold text-primary">Bagian pemilik: {formatRupiah(payouts[rental.id].owner_amount)}</p>
+          <p className="mt-1 text-muted-foreground">Harga sewa {formatRupiah(payouts[rental.id].gross_amount)} · Komisi platform {payouts[rental.id].fee_bps / 100}% ({formatRupiah(payouts[rental.id].platform_fee)}) · {payouts[rental.id].status === 'Tercatat simulasi' ? 'Pencairan dicatat' : payouts[rental.id].status === 'Menunggu simulasi' ? 'Menunggu pencairan' : payouts[rental.id].status}</p>
         </div>}
         {rental.status === 'Disetujui' && !rental.handoff_renter_confirmed_at && !rental.handoff_owner_confirmed_at && (cancellations[rental.id]
-          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan {cancellations[rental.id].requested_by === 'owner' ? 'oleh pemilik' : 'oleh penyewa'}: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ?? 'Menunggu peninjauan pengelola.'}</p></div>
+          ? <div className="mt-4 rounded-xl border border-primary/10 p-4 text-sm"><p className="font-semibold">Pembatalan {cancellations[rental.id].requested_by === 'owner' ? 'oleh pemilik' : 'oleh penyewa'}: {cancellations[rental.id].status}</p><p className="mt-1 text-muted-foreground">{cancellations[rental.id].resolution_note ? cancellationNoteForDisplay(cancellations[rental.id].resolution_note) : 'Menunggu peninjauan pengelola.'}</p></div>
           : cancellationOpenId === rental.id
-            ? <form onSubmit={event => { event.preventDefault(); void cancelOwnerRental(rental.id); }} className="mt-4 space-y-3 rounded-xl border border-primary/10 p-4"><label className="block text-sm font-semibold">Alasan pembatalan<textarea required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="mt-2 w-full rounded-xl border border-primary/20 p-3" rows={3} /></label><p className="text-xs text-muted-foreground">Sebelum pembayaran, pesanan langsung dibatalkan. Jika pembayaran sudah dibuat, pengelola akan meninjau status dan refund sandbox.</p><div className="flex gap-3"><button type="submit" disabled={cancellingId !== null} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{cancellingId === rental.id ? 'Memproses...' : 'Batalkan pesanan'}</button><button type="button" onClick={() => setCancellationOpenId(null)} className="text-sm text-muted-foreground">Tutup</button></div></form>
+            ? <form onSubmit={event => { event.preventDefault(); void cancelOwnerRental(rental.id); }} className="mt-4 space-y-3 rounded-xl border border-primary/10 p-4"><label className="block text-sm font-semibold">Alasan pembatalan<textarea required minLength={5} maxLength={500} value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} className="mt-2 w-full rounded-xl border border-primary/20 p-3" rows={3} /></label><p className="text-xs text-muted-foreground">Sebelum pembayaran, pesanan langsung dibatalkan. Jika pembayaran sudah dibuat, pengelola akan meninjau status dan pengembalian dana.</p><div className="flex gap-3"><button type="submit" disabled={cancellingId !== null} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{cancellingId === rental.id ? 'Memproses...' : 'Batalkan pesanan'}</button><button type="button" onClick={() => setCancellationOpenId(null)} className="text-sm text-muted-foreground">Tutup</button></div></form>
             : <button type="button" onClick={() => { setCancellationOpenId(rental.id); setCancellationReason(''); }} className="mt-4 text-sm font-semibold text-red-700">Batalkan pesanan →</button>)}
       </div>)}</div> : <p className="mt-3 text-sm text-muted-foreground">Belum ada permintaan sewa.</p>}
       {message && <p role="status" className="mt-3 text-sm text-primary">{message}</p>}

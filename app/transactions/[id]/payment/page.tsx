@@ -43,7 +43,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
         supabase.from('rental_cancellations').select('status').eq('rental_id', Number(id)).maybeSingle(),
       ]);
       if (!active) return;
-      if (rentalResult.error || paymentResult.error || cancellationResult.error) setError('Data pembayaran gagal dimuat. Pastikan migrasi database sudah dijalankan.');
+      if (rentalResult.error || paymentResult.error || cancellationResult.error) setError('Data pembayaran gagal dimuat. Coba muat ulang halaman.');
       else {
         setCancellationStatus(cancellationResult.data?.status ?? null);
         let currentPayment = paymentResult.data;
@@ -99,7 +99,7 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  if (process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED !== 'true') return <div className="page-container"><p>Pembayaran uji coba belum diaktifkan.</p><Link href="/transactions" className="mt-3 inline-block text-primary">Kembali ke transaksi →</Link></div>;
+  if (process.env.NEXT_PUBLIC_PAYMENT_SANDBOX_ENABLED !== 'true') return <div className="page-container"><p>Pembayaran saat ini tidak tersedia.</p><Link href="/transactions" className="mt-3 inline-block text-primary">Kembali ke transaksi →</Link></div>;
   if (authLoading) return <div className="page-container" role="status">Memuat sesi...</div>;
   if (!user || user.is_anonymous) return <div className="page-container"><p>Masuk untuk melihat pembayaran.</p><Link href={`/login?next=${encodeURIComponent(`/transactions/${id}/payment`)}`} className="mt-3 inline-block text-primary">Masuk →</Link></div>;
   if (!/^\d+$/.test(id)) return <div className="page-container" role="alert">Transaksi tidak ditemukan.</div>;
@@ -109,13 +109,13 @@ export default function PaymentPage({ params }: { params: Promise<{ id: string }
 
   return <div className="page-container"><div className="mx-auto max-w-xl space-y-5">
     <Link href="/transactions" className="text-sm font-semibold text-primary">← Kembali ke transaksi</Link>
-    <div className="rounded-2xl bg-white p-6 sm:p-8"><h1 className="text-2xl font-bold">Pembayaran uji coba</h1><p className="mt-2 text-sm text-muted-foreground">Midtrans sandbox · tidak menggunakan uang sungguhan.</p>
+    <div className="rounded-2xl bg-white p-6 sm:p-8"><h1 className="text-2xl font-bold">Pembayaran sewa</h1>
       <div className="mt-5 flex justify-between border-y border-primary/10 py-4"><span>Total sewa</span><strong className="text-primary">{formatRupiah(rental.total_price)}</strong></div>
       <p className="mt-4 text-sm">Status sewa: <strong>{rental.status}</strong></p><p className="mt-1 text-sm">Status pembayaran: <strong>{payment?.status ?? 'Belum dimulai'}</strong></p>
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">Penyewa membayar total sewa di atas. Komisi platform 10% untuk pemilik Standar atau 5% untuk pemilik Premium dihitung dari hasil sewa, bukan ditambahkan ke tagihan penyewa. Pembagian hasil masih simulasi.</p>
+      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">Penyewa membayar total sewa di atas. Komisi platform 10% untuk pemilik Standar atau 5% untuk pemilik Premium dihitung dari hasil sewa, bukan ditambahkan ke tagihan penyewa.</p>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {cancellationStatus && ['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus) && <p className="mt-4 text-sm text-muted-foreground">Pembatalan sedang ditinjau. Pembayaran baru ditunda.</p>}
-      {rental.status === 'Disetujui' && !['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus ?? '') && !['Dibayar', 'Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment?.status ?? '') && <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Mempersiapkan...' : payment ? 'Lanjutkan pembayaran uji coba' : 'Bayar di sandbox'}</button>}
+      {rental.status === 'Disetujui' && !['Menunggu', 'Diproses', 'Perlu manual'].includes(cancellationStatus ?? '') && !['Dibayar', 'Gagal', 'Kedaluwarsa', 'Dikembalikan'].includes(payment?.status ?? '') && <button type="button" disabled={busy} onClick={() => void startPayment()} className="mt-5 w-full rounded-full bg-primary px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Mempersiapkan...' : payment ? 'Lanjutkan pembayaran' : 'Bayar sekarang'}</button>}
       <button type="button" disabled={checking} onClick={() => void refreshPaymentStatus()} className="mt-3 w-full rounded-full border border-primary/20 px-5 py-3 text-sm font-semibold text-primary disabled:opacity-50">{checking ? 'Memeriksa status...' : 'Periksa status pembayaran'}</button>
     </div>
   </div></div>;

@@ -10,6 +10,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "sw
 export const metadata: Metadata = {
   title: "SERU",
   description: "Sewa alat lab, buku, hingga kamera dari sesama mahasiswa sekitarmu!",
+  icons: { icon: "/pinjamin-logo.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

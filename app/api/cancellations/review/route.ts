@@ -11,7 +11,7 @@ type GatewayStatus = {
 
 export async function POST(request: Request) {
   const config = paymentConfig();
-  if (!config) return Response.json({ error: 'Sandbox belum dikonfigurasi.' }, { status: 503 });
+  if (!config) return Response.json({ error: 'Pembayaran saat ini tidak tersedia.' }, { status: 503 });
   const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) return Response.json({ error: 'Masuk terlebih dahulu.' }, { status: 401 });
   const { data: identity, error: authError } = await config.auth.auth.getUser(token);
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   }
   if (action === 'approve') {
     const { data, error } = await config.admin.from('rental_cancellations').update({
-      status: 'Diproses', resolution_note: 'Pengelola sedang memeriksa status Midtrans sandbox.',
+      status: 'Diproses', resolution_note: 'Pengelola sedang memeriksa status pembayaran.',
     }).eq('rental_id', rentalId).eq('status', cancellation.status).select('rental_id').maybeSingle();
     if (error || !data) return Response.json({ error: 'Pengajuan sedang diproses. Muat ulang halaman.' }, { status: 409 });
   }
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   try {
     if (!payment) return await complete(null, 'Belum ada pembayaran; transaksi dibatalkan.');
     if (payment.amount !== rental.total_price) return await manual('Nominal pembayaran tidak cocok. Periksa transaksi di Midtrans.');
-    if (payment.status === 'Dikembalikan') return await complete(null, 'Refund sandbox sudah tercatat.');
+    if (payment.status === 'Dikembalikan') return await complete(null, 'Pengembalian dana sudah tercatat.');
     if (payment.status === 'Mempersiapkan' && !payment.redirect_url) {
       return await manual('Pembayaran masih disiapkan. Periksa status order di Midtrans sebelum membatalkan.');
     }
@@ -125,13 +125,13 @@ export async function POST(request: Request) {
     const statusResponse = await fetch(`${endpoint}/status`, {
       headers: { Accept: 'application/json', Authorization: credentials }, cache: 'no-store',
     });
-    if (!statusResponse.ok) return await manual('Status Midtrans belum dapat diverifikasi. Periksa ulang di dashboard sandbox.');
+    if (!statusResponse.ok) return await manual('Status pembayaran belum dapat diverifikasi. Periksa ulang di dashboard Midtrans.');
     const gateway = await statusResponse.json() as GatewayStatus;
     const amount = Number(gateway.gross_amount);
     if (gateway.order_id !== payment.order_id || !Number.isSafeInteger(amount) || amount !== payment.amount) {
       return await manual('Data order Midtrans tidak cocok. Jangan proses otomatis.');
     }
-    if (gateway.transaction_status === 'refund') return await complete('Dikembalikan', 'Refund tercatat di Midtrans sandbox.');
+    if (gateway.transaction_status === 'refund') return await complete('Dikembalikan', 'Pengembalian dana tercatat di Midtrans.');
     if (['cancel', 'expire', 'deny', 'failure'].includes(gateway.transaction_status ?? '')) {
       return await complete('Gagal', 'Pembayaran tidak jadi; transaksi dibatalkan.');
     }
@@ -143,9 +143,9 @@ export async function POST(request: Request) {
       });
       const result = await cancelResponse.json() as GatewayStatus;
       if (cancelResponse.ok && result.order_id === payment.order_id && result.transaction_status === 'cancel') {
-        return await complete('Gagal', 'Order dibatalkan di Midtrans sandbox.');
+        return await complete('Gagal', 'Pesanan dibatalkan di Midtrans.');
       }
-      return await manual('Midtrans tidak menerima pembatalan otomatis. Periksa order di dashboard sandbox.');
+      return await manual('Midtrans tidak menerima pembatalan otomatis. Periksa pesanan di dashboard Midtrans.');
     }
 
     if (gateway.transaction_status !== 'settlement') return await manual('Status pembayaran belum mendukung refund otomatis.');
@@ -160,17 +160,17 @@ export async function POST(request: Request) {
     });
     const result = await refundResponse.json() as GatewayStatus;
     if (refundResponse.ok && result.order_id === payment.order_id && result.transaction_status === 'refund') {
-      return await complete('Dikembalikan', 'Refund penuh diterima Midtrans sandbox; status dana nyata tidak berlaku.');
+      return await complete('Dikembalikan', 'Pengembalian dana penuh tercatat di Midtrans.');
     }
     if (refundResponse.ok && result.order_id === payment.order_id) {
       const { error } = await config.admin.from('rental_cancellations').update({
-        status: 'Diproses', resolution_note: 'Refund diajukan ke Midtrans sandbox; menunggu konfirmasi.',
+        status: 'Diproses', resolution_note: 'Pengembalian dana diajukan ke Midtrans; menunggu konfirmasi.',
       }).eq('rental_id', rentalId);
       if (error) throw error;
-      return Response.json({ status: 'Diproses', resolution_note: 'Refund diajukan ke Midtrans sandbox; menunggu konfirmasi.' });
+      return Response.json({ status: 'Diproses', resolution_note: 'Pengembalian dana diajukan ke Midtrans; menunggu konfirmasi.' });
     }
-    return await manual('Refund otomatis belum diterima Midtrans. Periksa di dashboard sandbox.');
+    return await manual('Refund otomatis belum diterima Midtrans. Periksa di dashboard Midtrans.');
   } catch {
-    return await manual('Proses Midtrans belum pasti. Periksa order di dashboard sandbox sebelum mencoba lagi.');
+    return await manual('Proses Midtrans belum pasti. Periksa pesanan di dashboard Midtrans sebelum mencoba lagi.');
   }
 }

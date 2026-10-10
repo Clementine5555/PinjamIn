@@ -21,7 +21,7 @@ export default function VerificationPage() {
     let active = true;
     void supabase.from('student_verifications').select('student_number,university,ktm_path,ktp_path,status,reviewer_note').eq('user_id', userId).maybeSingle().then(({ data, error: loadError }) => {
       if (!active) return;
-      if (loadError) setError('Status verifikasi gagal dimuat. Pastikan migrasi terbaru sudah dijalankan.');
+      if (loadError) setError('Status verifikasi gagal dimuat. Coba muat ulang halaman.');
       else setRecord(data);
       setLoading(false);
     });
