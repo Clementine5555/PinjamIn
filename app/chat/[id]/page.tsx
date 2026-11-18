@@ -5,6 +5,7 @@ import { use, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { maskPhoneNumbers, containsPhoneNumber } from '@/lib/display-text';
 
 type Rental = { id: number; renter_id: string; status: string; item: { title: string; owner_id: string | null } | null };
 type Message = { id: number; rental_id: number; sender_id: string; body: string; created_at: string };
@@ -25,6 +26,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [realtimeError, setRealtimeError] = useState(false);
+  const hasPhone = containsPhoneNumber(body);
   const bottom = useRef<HTMLDivElement>(null);
   const userId = user && !user.is_anonymous ? user.id : '';
   const rentalId = /^\d+$/.test(id) ? Number(id) : 0;
@@ -75,8 +77,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     if (!rental || !userId || !text || text.length > 1000 || sending) return;
     setSending(true); setError('');
     try {
+      const filteredText = maskPhoneNumbers(text);
       const { data, error: sendError } = await supabase.from('messages')
-        .insert({ rental_id: rental.id, sender_id: userId, body: text })
+        .insert({ rental_id: rental.id, sender_id: userId, body: filteredText })
         .select('id,rental_id,sender_id,body,created_at').single();
       if (sendError) throw sendError;
       setBody('');
@@ -94,11 +97,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     {loading ? <p className="p-6" role="status">Memuat chat...</p> : rental ? <>
       <div role="log" aria-label="Pesan chat" aria-live="polite" className="flex h-[min(55vh,520px)] min-h-72 flex-col gap-3 overflow-y-auto bg-background/60 p-4 sm:p-6">
         {!messages.length && <p className="m-auto text-center text-sm text-muted-foreground">Belum ada pesan. Mulai percakapan tentang barang sewaan ini.</p>}
-        {messages.map(message => <div key={message.id} className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${message.sender_id === userId ? 'ml-auto bg-primary text-white' : 'mr-auto border border-primary/10 bg-white'}`}><p className="whitespace-pre-wrap break-words">{message.body}</p><time dateTime={message.created_at} className={`mt-1 block text-right text-xs ${message.sender_id === userId ? 'text-white/70' : 'text-muted-foreground'}`}>{new Date(message.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</time></div>)}
+        {messages.map(message => <div key={message.id} className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${message.sender_id === userId ? 'ml-auto bg-primary text-white' : 'mr-auto border border-primary/10 bg-white'}`}><p className="whitespace-pre-wrap break-words">{maskPhoneNumbers(message.body)}</p><time dateTime={message.created_at} className={`mt-1 block text-right text-xs ${message.sender_id === userId ? 'text-white/70' : 'text-muted-foreground'}`}>{new Date(message.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</time></div>)}
         <div ref={bottom} />
       </div>
       {realtimeError && <p role="status" className="px-4 pt-3 text-xs text-amber-700">Koneksi pesan langsung terputus. Muat ulang halaman untuk melihat pesan terbaru.</p>}
-      <form onSubmit={send} className="flex gap-2 border-t border-primary/10 p-3 sm:p-4"><label htmlFor="chat-body" className="sr-only">Tulis pesan</label><input id="chat-body" value={body} onChange={event => setBody(event.target.value)} maxLength={1000} placeholder="Tulis pesan tentang sewa ini..." className="min-w-0 flex-1 rounded-full border border-primary/20 px-4 py-3 text-sm" /><button type="submit" disabled={sending || !body.trim()} aria-label="Kirim pesan" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-50"><Send size={18} /></button></form>
+      <form onSubmit={send} className="flex flex-col gap-2 border-t border-primary/10 p-3 sm:p-4">
+        {hasPhone && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Nomor telepon tidak diperbolehkan dalam chat. Nomor akan otomatis disembunyikan saat dikirim.</p>}
+        <div className="flex gap-2"><label htmlFor="chat-body" className="sr-only">Tulis pesan</label><input id="chat-body" value={body} onChange={event => setBody(event.target.value)} maxLength={1000} placeholder="Tulis pesan tentang sewa ini..." className="min-w-0 flex-1 rounded-full border border-primary/20 px-4 py-3 text-sm" /><button type="submit" disabled={sending || !body.trim()} aria-label="Kirim pesan" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-50"><Send size={18} /></button></div>
+      </form>
     </> : null}
     {error && <p role="alert" className="p-4 text-sm text-red-700">{error}</p>}
   </div></div>;

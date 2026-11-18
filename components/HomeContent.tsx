@@ -26,8 +26,8 @@ export default function HomeContent({ items, error, search = false }: { items: I
     <div className="page-container">
       <section className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{search ? 'Cari barang' : 'Halo, teman kampus! 👋'}</h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:text-base">{search ? 'Temukan perlengkapan untuk kebutuhanmu.' : 'Mau pinjam perlengkapan apa hari ini?'}</p>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{search ? 'Cari barang' : 'Lagi butuh apa? 👋'}</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">{search ? 'Temukan perlengkapan untuk kebutuhanmu.' : 'Cari barang yang bisa kamu sewa dari anak kampus lain.'}</p>
         </div>
         <label className="flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 shadow-sm">
           <MapPin size={17} className="shrink-0 text-primary" />
@@ -38,9 +38,9 @@ export default function HomeContent({ items, error, search = false }: { items: I
       </section>
       {!search && <section className="relative mb-6 flex items-center justify-between gap-4 overflow-hidden rounded-2xl bg-primary p-5 text-white sm:mb-8 sm:p-8">
         <div className="relative z-10 max-w-xl">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-mint px-3 py-1 text-xs font-semibold text-primary"><UsersRound size={14} />Komunitas mahasiswa</span>
-          <h2 className="mt-3 text-xl leading-tight font-bold sm:text-3xl">Hemat pengeluaran kuliah.</h2>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80 sm:text-base">Sewa alat lab, buku, hingga kamera dari sesama mahasiswa sekitarmu!</p>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-mint px-3 py-1 text-xs font-semibold text-primary"><UsersRound size={14} />Sesama mahasiswa</span>
+          <h2 className="mt-3 text-xl leading-tight font-bold sm:text-3xl">Ngapain beli, sewa aja.</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80 sm:text-base">Kamera, tripod, sampai alat praktikum, sewa dari mahasiswa yang barangnya lagi nganggur.</p>
         </div>
         <div className="hidden shrink-0 rounded-3xl bg-white/10 p-5 min-[380px]:block sm:p-8"><GraduationCap className="size-12 text-mint sm:size-20" strokeWidth={1.5} /></div>
       </section>}

@@ -11,7 +11,7 @@ export default function TermsPage() {
     <article className="mx-auto max-w-3xl space-y-6 rounded-2xl bg-white p-6 text-sm leading-7 sm:p-10">
       <div>
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Syarat dan Ketentuan SERU</h1>
-        <p className="mt-2 text-muted-foreground">Terakhir diperbarui: 10 Oktober 2026</p>
+        <p className="mt-2 text-muted-foreground">Terakhir diperbarui: 18 November 2026</p>
       </div>
 
       <section>
@@ -33,6 +33,11 @@ export default function TermsPage() {
         <h2 className="text-lg font-bold">4. Serah terima dan pengembalian</h2>
         <p>Para pihak menyepakati tempat serah terima sesuai detail pesanan. Periksa kondisi dan kelengkapan barang bersama sebelum mengonfirmasi penerimaan. Penyewa wajib mengembalikan barang paling lambat pada tanggal akhir sewa dalam kondisi yang disepakati, dengan mempertimbangkan pemakaian wajar. Konfirmasi pengembalian dilakukan oleh penyewa lebih dulu, lalu pemilik. Jika ada kerusakan, kehilangan, atau perbedaan kondisi, gunakan fitur laporan dan sertakan bukti yang relevan.</p>
         <p className="mt-2">Keterlambatan pengembalian dicatat dengan denda 15% dari tarif sewa harian per hari keterlambatan. Denda yang tampil di SERU merupakan tagihan tercatat, bukan pembayaran yang otomatis ditarik.</p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-bold">4a. Barang hilang</h2>
+        <p>Jika barang yang disewa hilang selama masa sewa, penyewa bertanggung jawab penuh atas penggantian barang tersebut. Penyewa wajib segera melaporkan kehilangan melalui fitur laporan di SERU beserta bukti atau kronologi kejadian. Nilai penggantian disepakati oleh pemilik dan penyewa mengacu pada harga pasar wajar barang pada saat sewa berlangsung. SERU berperan sebagai perantara komunikasi dan tidak menanggung nilai barang yang hilang. Jika tidak ada kesepakatan, pengelola dapat diminta memediasi melalui jalur laporan. Penyewa tidak dapat menutup transaksi atau melewati proses laporan untuk barang yang dinyatakan hilang.</p>
       </section>
 
       <section>
